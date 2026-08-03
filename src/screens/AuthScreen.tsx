@@ -33,21 +33,25 @@ export default function AuthScreen({ onLogin }: Props) {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: C.dark }}>
       <div className="max-w-7xl mx-auto" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* Hero — gli elementi entrano in sequenza dall'alto verso il basso */}
-        <M.List style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px 40px' }}>
+        {/* Hero — gli elementi entrano in sequenza dall'alto verso il basso.
+            "GDA", logo, filetto e claim sono un blocco solo: stanno stretti,
+            altrimenti si leggono come quattro cose separate invece che come
+            l'intestazione del marchio. Il padding sopra e sotto è uguale,
+            così il gruppo resta davvero al centro dello spazio libero. */}
+        <M.List style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px' }}>
           <M.Item>
-            <span style={{ display: 'block', color: C.magenta, fontSize: '11px', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '20px' }}>
+            <span style={{ display: 'block', color: C.magenta, fontSize: '11px', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '6px' }}>
               GDA
             </span>
           </M.Item>
           <M.Item>
-            <Icon.Logo height={72} style={{ marginBottom: '20px', maxWidth: '78%', objectFit: 'contain' }} />
+            <Icon.Logo height={72} style={{ marginBottom: '14px', maxWidth: '78%', objectFit: 'contain' }} />
           </M.Item>
           {/* Il filetto si disegna: chiude visivamente il blocco del logo */}
           <motion.div
             initial={{ width: 0 }} animate={{ width: 32 }}
             transition={{ ...M.T.enter, delay: 0.24 }}
-            style={{ height: '2px', backgroundColor: C.magenta, marginBottom: '16px' }}
+            style={{ height: '2px', backgroundColor: C.magenta, marginBottom: '12px' }}
           />
           <M.Item>
             <p style={{ color: alpha(C.silver, 0.6), fontSize: '14px', textAlign: 'center', maxWidth: '240px', lineHeight: 1.5 }}>
