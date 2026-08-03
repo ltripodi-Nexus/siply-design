@@ -44,8 +44,16 @@ export default function AuthScreen({ onLogin }: Props) {
               GDA
             </span>
           </M.Item>
+          {/* Niente `maxWidth` sul logo: la percentuale si misurava sul
+              contenitore, che è largo quanto il logo stesso, quindi non faceva
+              da rete per gli schermi stretti — rimpiccioliva l'immagine e
+              basta. Il riquadro restava della misura piena e l'immagine ci
+              stava dentro a sinistra, fuori asse di 23px; `objectFit: contain`
+              in più la centrava in verticale lasciando 8px vuoti sopra e sotto.
+              A 320px di schermo il logo ci sta comodo: 212px contro 272
+              disponibili. */}
           <M.Item>
-            <Icon.Logo height={72} style={{ marginBottom: '14px', maxWidth: '78%', objectFit: 'contain' }} />
+            <Icon.Logo height={72} style={{ marginBottom: '14px' }} />
           </M.Item>
           {/* Il filetto si disegna: chiude visivamente il blocco del logo */}
           <motion.div
