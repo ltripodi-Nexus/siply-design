@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { C, alpha } from '../colors'
 import { cassaTotale, type Cassa, type CassaBottiglia, type Gda, type GdaPayload } from '../App'
+import { COMMISSIONE, COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, num, pct } from '../economia'
 import { WINES, FILTERS_INIT, applyFilters, activeFilterCount, type WineRich, type WineFilters } from '../data/wines'
 import WineFilterPanel from '../components/WineFilterPanel'
 import * as M from '../motion'
@@ -19,31 +20,32 @@ interface Props {
   onAnnulla: () => void
 }
 
-/** Tetto alle bottiglie stimate in vendita sull'intero GDA. */
-const TARGET_MAX = 100000
+/** Tetto alle bottiglie di un obiettivo di vendita. */
+const MAX_BOTTIGLIE = 100000
+/** Quanti obiettivi si possono fissare: oltre, non si confrontano più a occhio. */
+const MAX_OBIETTIVI = 6
 
-function clampTarget(v: string): string {
+function clampObiettivo(v: string): string {
   if (v === '') return ''
   const n = parseInt(v)
   if (isNaN(n)) return ''
-  return String(Math.min(Math.max(n, 0), TARGET_MAX))
+  return String(Math.min(Math.max(n, 0), MAX_BOTTIGLIE))
 }
 
-/** Righe {listino, qty, prezzo scontato, prezzo acquisto Siply, costo} di una cassa. */
+/** Righe {listino, qty, prezzo scontato, costo di produzione} di una cassa. */
 function righeCassa(c: Cassa) {
   const voci = c.bottiglie ?? [{ bottiglia: c.bottiglia, quantita: c.quantita }]
   return voci.map(v => {
     const id = v.bottiglia.id
-    const num = (r?: Record<string, string>) => {
+    const val = (r?: Record<string, string>) => {
       const n = parseFloat(r?.[id] ?? '')
       return !isNaN(n) && n > 0 ? n : 0
     }
     return {
       listino: v.bottiglia.prezzo,
       qty: v.quantita,
-      ps: num(c.prezziScontati),
-      paS: num(c.costiScontati),
-      cp: num(c.costiUnitari),
+      ps: val(c.prezziScontati),
+      cp: val(c.costiUnitari),
     }
   })
 }
@@ -63,7 +65,6 @@ function demoDraft(): Cassa {
     note: DEMO_CASSA.note,
     prezziScontati: DEMO_CASSA.prezziScontati,
     costiUnitari: DEMO_CASSA.costiUnitari,
-    costiScontati: DEMO_CASSA.costiScontati,
   }
 }
 
@@ -102,13 +103,14 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
   const [extraWines, setExtraWines] = useState<WineRich[]>([])
   const [prezziScontati, setPrezziScontati] = useState<Record<string, string>>({})
   const [costiUnitari, setCostiUnitari] = useState<Record<string, string>>({})
-  const [costiScontati, setCostiScontati] = useState<Record<string, string>>({})
   const [listinoPdf, setListinoPdf] = useState<File | null>(null)
-  // Spedizione e stima vendite valgono per tutto il GDA: si impostano una volta
-  // e non vengono azzerate quando si passa alla cassa successiva.
+  // Spedizione e obiettivi valgono per tutto il GDA: si impostano una volta
+  // e non vengono azzerati quando si passa alla cassa successiva.
   const [locationSpedizione, setLocationSpedizione] = useState(gdaTarget?.locationSpedizione ?? '')
   const [noteSpedizione, setNoteSpedizione] = useState(gdaTarget?.noteSpedizione ?? '')
-  const [targetBottiglie, setTargetBottiglie] = useState(gdaTarget?.targetBottiglie ? String(gdaTarget.targetBottiglie) : '')
+  /** Sempre ordinati e senza doppioni: ci pensa `aggiungiObiettivo`. */
+  const [obiettivi, setObiettivi] = useState<number[]>(gdaTarget?.obiettivi ?? [])
+  const [nuovoObiettivo, setNuovoObiettivo] = useState('')
 
   useDemo(mode => {
     if (mode === 'clear') {
@@ -121,11 +123,11 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
       setNote('')
       setPrezziScontati({})
       setCostiUnitari({})
-      setCostiScontati({})
       setListinoPdf(null)
       setLocationSpedizione(gdaTarget?.locationSpedizione ?? '')
       setNoteSpedizione(gdaTarget?.noteSpedizione ?? '')
-      setTargetBottiglie('')
+      setObiettivi([])
+      setNuovoObiettivo('')
       return
     }
     if (!aggiunta) setGdaNome(DEMO_CASSA.gdaNome)
@@ -134,15 +136,24 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     setNote(DEMO_CASSA.note)
     setPrezziScontati(DEMO_CASSA.prezziScontati)
     setCostiUnitari(DEMO_CASSA.costiUnitari)
-    setCostiScontati(DEMO_CASSA.costiScontati)
     setListinoPdf(demoListino())
     setLocationSpedizione(DEMO_CASSA.locationSpedizione)
     setNoteSpedizione(DEMO_CASSA.noteSpedizione)
-    setTargetBottiglie(DEMO_CASSA.targetBottiglie)
+    setObiettivi(DEMO_CASSA.obiettivi)
     // una cassa già dentro il GDA, così il riepilogo non è vuoto e si vede
     // il caso multi-cassa: quella in lavorazione diventerà la seconda
     if (!aggiunta) setCasseAggiunte([demoDraft()])
   })
+
+  /** Aggiunge un obiettivo tenendo la lista ordinata e senza doppioni: due
+   *  volte lo stesso numero non vuol dire niente, e uno più piccolo scritto
+   *  dopo va comunque letto prima. */
+  const aggiungiObiettivo = () => {
+    const n = parseInt(nuovoObiettivo)
+    if (isNaN(n) || n <= 0) return
+    setObiettivi(p => p.includes(n) || p.length >= MAX_OBIETTIVI ? p : [...p, n].sort((a, b) => a - b))
+    setNuovoObiettivo('')
+  }
 
   const gdaPronto = gdaNome.trim().length > 0
   // le casse di un GDA già inviato si vedono ma non si toccano; quelle di una
@@ -152,7 +163,7 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     () => casseEsistenti.reduce((s, c) => s + c.quantita, 0) + casseAggiunte.reduce((s, c) => s + c.quantita, 0),
     [casseEsistenti, casseAggiunte],
   )
-  const targetLimitato = parseInt(targetBottiglie) === TARGET_MAX
+  const obiettivoLimitato = parseInt(nuovoObiettivo) === MAX_BOTTIGLIE
 
   const setF = (p: Partial<WineFilters>) => setFilters(f => ({ ...f, ...p }))
   const nActive = activeFilterCount(filters)
@@ -211,7 +222,6 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
       note: note.trim() || undefined,
       prezziScontati,
       costiUnitari,
-      costiScontati,
     }
     setCasseAggiunte(p => [...p, nuova])
     resetFormCassa()
@@ -227,7 +237,6 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     setNote('')
     setPrezziScontati({})
     setCostiUnitari({})
-    setCostiScontati({})
     setListinoPdf(null)
   }
 
@@ -237,16 +246,11 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     setStep('vino')
   }
 
-  const targetNum = () => {
-    const n = parseInt(targetBottiglie)
-    return isNaN(n) || n <= 0 ? undefined : n
-  }
-
   /** I campi del GDA come li vede chi li riceve, in un posto solo. */
   const datiGda = (): GdaPayload => ({
     nome: gdaNome,
     casse: casseAggiunte,
-    targetBottiglie: targetNum(),
+    obiettivi: obiettivi.length > 0 ? obiettivi : undefined,
     locationSpedizione: locationSpedizione.trim() || undefined,
     noteSpedizione: noteSpedizione.trim() || undefined,
   })
@@ -894,15 +898,24 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
             </div>
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+              {/* Il produttore scrive un numero solo: il suo costo. Quanto
+                  incassa esce dal prezzo GDA meno la nostra quota, e va detto
+                  qui, altrimenti quella riga verde sembra spuntata dal nulla. */}
+              <p style={{ color: C.gray, fontSize: '12.5px', lineHeight: 1.55, backgroundColor: alpha(C.green, 0.08), borderRadius: '12px', padding: '11px 14px' }}>
+                Su ogni bottiglia venduta nel gruppo Siply trattiene il <strong style={{ color: C.forest }}>{COMMISSIONE_PCT}</strong> del prezzo, e il resto è tuo. Non c'è niente da contrattare: scrivi solo quanto ti costa produrre e vedi subito quanto ti resta.
+              </p>
+
               {/* Per-wine costo rows */}
               {selectedWines.map((w, idx) => {
                 const cu = costiUnitari[w.id] ?? ''
-                const cs = costiScontati[w.id] ?? ''
                 const cuNum = parseFloat(cu)
-                const csNum = parseFloat(cs)
                 const psNum = parseFloat(prezziScontati[w.id] ?? '')
                 const margineListino = !isNaN(cuNum) && cuNum > 0 ? w.prezzo - cuNum : null
-                const margineScontato = !isNaN(csNum) && csNum > 0 && !isNaN(psNum) && psNum > 0 ? psNum - csNum : null
+                // senza prezzo scontato vale il listino, come nei totali
+                const prezzoGda = !isNaN(psNum) && psNum > 0 ? psNum : w.prezzo
+                const quotaSiply = commissione(prezzoGda)
+                const incasso = alProduttore(prezzoGda)
+                const margineGda = !isNaN(cuNum) && cuNum > 0 ? incasso - cuNum : null
                 return (
                   <div key={w.id} style={{ borderBottom: idx < selectedWines.length - 1 ? `1px solid ${alpha(C.dark, 0.06)}` : 'none', paddingBottom: idx < selectedWines.length - 1 ? '16px' : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '10px' }}>
@@ -928,34 +941,38 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                           <p style={{ color: margineListino >= 0 ? C.forest : C.magenta, fontSize: '12.5px', fontWeight: 600, marginTop: '4px' }}>
                             <Spiega
                               k="margineListino"
-                              calcolo={`€${w.prezzo} − €${cuNum.toFixed(2)} = ${margineListino >= 0 ? '+' : ''}€${margineListino.toFixed(2)}`}
+                              calcolo={`€${eur(w.prezzo)} − €${eur(cuNum)} = ${margineListino >= 0 ? '+' : ''}€${eur(margineListino)}`}
                             >
-                              Margine listino: {margineListino >= 0 ? '+' : ''}€{margineListino.toFixed(2)}
+                              Margine listino: {margineListino >= 0 ? '+' : ''}€{eur(margineListino)}
                             </Spiega>
                           </p>
                         )}
                       </div>
+                      {/* Non è un campo: quanto incassa il produttore esce dal
+                          prezzo GDA meno la commissione, sempre la stessa. */}
                       <div>
                         <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 700, color: alpha(C.dark, 0.45), textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '5px' }}>
-                          <Spiega k="acquistoSiply">Prezzo acquisto Siply</Spiega>
+                          <Spiega k="incassoBottiglia">Incassi tu / bottiglia</Spiega>
                         </label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '10px', padding: '9px 12px', border: `1.5px solid ${cs ? alpha(C.green, 0.4) : 'transparent'}` }}>
-                          <span style={{ color: C.gray, fontSize: '13px' }}>€</span>
-                          <input
-                            type="number" step="0.5"
-                            placeholder="0.00"
-                            value={cs}
-                            onChange={e => setCostiScontati(p => ({ ...p, [w.id]: e.target.value }))}
-                            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.dark, fontSize: '14px', fontWeight: 600 }}
-                          />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: alpha(C.green, 0.09), borderRadius: '10px', padding: '9px 12px', border: `1.5px solid ${alpha(C.green, 0.3)}` }}>
+                          <span style={{ flex: 1, color: C.forest, fontSize: '14px', fontWeight: 700 }}>€ {eur(incasso)}</span>
+                          <Spiega
+                            k="commissioneSiply"
+                            calcolo={`€${eur(prezzoGda)} × ${COMMISSIONE_PCT} = €${eur(quotaSiply)}`}
+                            style={{ flexShrink: 0, color: C.forest }}
+                          >
+                            <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: alpha(C.green, 0.2), padding: '2px 7px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
+                              −€{eur(quotaSiply)} Siply
+                            </span>
+                          </Spiega>
                         </div>
-                        {margineScontato !== null && (
-                          <p style={{ color: margineScontato >= 0 ? C.forest : C.magenta, fontSize: '12.5px', fontWeight: 600, marginTop: '4px' }}>
+                        {margineGda !== null && (
+                          <p style={{ color: margineGda >= 0 ? C.forest : C.magenta, fontSize: '12.5px', fontWeight: 600, marginTop: '4px' }}>
                             <Spiega
-                              k="margineSiply"
-                              calcolo={`€${psNum.toFixed(2)} − €${csNum.toFixed(2)} = ${margineScontato >= 0 ? '+' : ''}€${margineScontato.toFixed(2)}`}
+                              k="margineGda"
+                              calcolo={`€${eur(incasso)} − €${eur(cuNum)} = ${margineGda >= 0 ? '+' : ''}€${eur(margineGda)}`}
                             >
-                              Margine Siply: {margineScontato >= 0 ? '+' : ''}€{margineScontato.toFixed(2)}
+                              Margine GDA: {margineGda >= 0 ? '+' : ''}€{eur(margineGda)}
                             </Spiega>
                           </p>
                         )}
@@ -1012,17 +1029,16 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
               const cu = parseFloat(costiUnitari[w.id] ?? '')
               return sum + (!isNaN(cu) && cu > 0 ? cu * (quantities[w.id] ?? 0) : 0)
             }, 0)
-            const prezzoAcquistoSiplyTotale = selectedWines.reduce((sum, w) => {
-              const cs = parseFloat(costiScontati[w.id] ?? '')
-              return sum + (!isNaN(cs) && cs > 0 ? cs * (quantities[w.id] ?? 0) : 0)
-            }, 0)
-            const costoScontatoTotale = prezzoAcquistoSiplyTotale
             const hasDati = costoTotale > 0 || ricavoScontato > 0
             if (!hasDati) return null
+            // La parte di Siply non è una differenza fra prezzi battuti a mano:
+            // è la sua quota sul fatturato della cassa.
+            const quotaSiply = ricavoScontato > 0 ? commissione(ricavoScontato) : null
+            const incasso = ricavoScontato > 0 ? alProduttore(ricavoScontato) : null
             const margineListino = costoTotale > 0 ? ricavoListino - costoTotale : null
-            const margineScontato = costoScontatoTotale > 0 && ricavoScontato > 0 ? ricavoScontato - costoScontatoTotale : null
+            const margineGda = costoTotale > 0 && incasso !== null ? incasso - costoTotale : null
             const pctListino = margineListino !== null && costoTotale > 0 ? (margineListino / costoTotale) * 100 : null
-            const pctScontato = margineScontato !== null && costoScontatoTotale > 0 ? (margineScontato / costoScontatoTotale) * 100 : null
+            const pctGda = margineGda !== null && costoTotale > 0 ? (margineGda / costoTotale) * 100 : null
             return (
               <div style={{ backgroundColor: C.dark, borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -1035,14 +1051,14 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                     <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
                       <Spiega k="ricavoListino">Ricavo a listino</Spiega>
                     </span>
-                    <span style={{ color: C.bg, fontSize: '15px', fontWeight: 700 }}>€ {ricavoListino.toFixed(2)}</span>
+                    <span style={{ color: C.bg, fontSize: '15px', fontWeight: 700 }}>€ {eur(ricavoListino)}</span>
                   </div>
                   {ricavoScontato > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
                         <Spiega k="ricavoScontato">Ricavo GDA scontato</Spiega>
                       </span>
-                      <span style={{ color: C.ocra, fontSize: '15px', fontWeight: 700 }}>€ {ricavoScontato.toFixed(2)}</span>
+                      <span style={{ color: C.ocra, fontSize: '15px', fontWeight: 700 }}>€ {eur(ricavoScontato)}</span>
                     </div>
                   )}
                   {costoTotale > 0 && (
@@ -1050,15 +1066,33 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                       <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
                         <Spiega k="costoTotale">Costo totale</Spiega>
                       </span>
-                      <span style={{ color: alpha(C.silver, 0.7), fontSize: '15px', fontWeight: 700 }}>€ {costoTotale.toFixed(2)}</span>
+                      <span style={{ color: alpha(C.silver, 0.7), fontSize: '15px', fontWeight: 700 }}>€ {eur(costoTotale)}</span>
                     </div>
                   )}
-                  {costoScontatoTotale > 0 && (
+                  {quotaSiply !== null && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
-                        <Spiega k="acquistoSiplyTot">Prezzo acquisto Siply (tot.)</Spiega>
+                        <Spiega
+                          k="commissioneSiply"
+                          calcolo={`€${eur(ricavoScontato)} × ${COMMISSIONE_PCT} = €${eur(quotaSiply)}`}
+                        >
+                          Commissione Siply ({COMMISSIONE_PCT})
+                        </Spiega>
                       </span>
-                      <span style={{ color: alpha(C.silver, 0.7), fontSize: '15px', fontWeight: 700 }}>€ {costoScontatoTotale.toFixed(2)}</span>
+                      <span style={{ color: alpha(C.silver, 0.7), fontSize: '15px', fontWeight: 700 }}>− € {eur(quotaSiply)}</span>
+                    </div>
+                  )}
+                  {incasso !== null && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
+                        <Spiega
+                          k="incassoCassa"
+                          calcolo={`€${eur(ricavoScontato)} × ${QUOTA_PCT} = €${eur(incasso)}`}
+                        >
+                          Incassi tu
+                        </Spiega>
+                      </span>
+                      <span style={{ color: C.bg, fontSize: '15px', fontWeight: 700 }}>€ {eur(incasso)}</span>
                     </div>
                   )}
                   <div style={{ height: '1px', backgroundColor: alpha(C.white, 0.08), margin: '4px 0' }} />
@@ -1067,30 +1101,30 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                       <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
                         <Spiega
                           k="margineListino"
-                          calcolo={`€${ricavoListino.toFixed(2)} − €${costoTotale.toFixed(2)} = ${margineListino >= 0 ? '+' : ''}€${margineListino.toFixed(2)}`}
+                          calcolo={`€${eur(ricavoListino)} − €${eur(costoTotale)} = ${margineListino >= 0 ? '+' : ''}€${eur(margineListino)}`}
                         >
                           Margine a listino
                         </Spiega>
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {pctListino !== null && <span style={{ color: margineListino >= 0 ? C.green : C.magenta, fontSize: '12px', fontWeight: 700, backgroundColor: alpha(margineListino >= 0 ? C.green : C.magenta, 0.15), padding: '2px 7px', borderRadius: '20px' }}>{pctListino >= 0 ? '+' : ''}{pctListino.toFixed(1)}%</span>}
-                        <span style={{ color: margineListino >= 0 ? C.green : C.magenta, fontSize: '18px', fontWeight: 800 }}>{margineListino >= 0 ? '+' : ''}€{margineListino.toFixed(2)}</span>
+                        {pctListino !== null && <span style={{ color: margineListino >= 0 ? C.green : C.magenta, fontSize: '12px', fontWeight: 700, backgroundColor: alpha(margineListino >= 0 ? C.green : C.magenta, 0.15), padding: '2px 7px', borderRadius: '20px' }}>{pctListino >= 0 ? '+' : ''}{pct(pctListino)}%</span>}
+                        <span style={{ color: margineListino >= 0 ? C.green : C.magenta, fontSize: '18px', fontWeight: 800 }}>{margineListino >= 0 ? '+' : ''}€{eur(margineListino)}</span>
                       </div>
                     </div>
                   )}
-                  {margineScontato !== null && (
+                  {margineGda !== null && incasso !== null && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: alpha(C.silver, 0.55), fontSize: '13px' }}>
                         <Spiega
-                          k="margineSiply"
-                          calcolo={`€${ricavoScontato.toFixed(2)} − €${costoScontatoTotale.toFixed(2)} = ${margineScontato >= 0 ? '+' : ''}€${margineScontato.toFixed(2)}`}
+                          k="margineGda"
+                          calcolo={`€${eur(incasso)} − €${eur(costoTotale)} = ${margineGda >= 0 ? '+' : ''}€${eur(margineGda)}`}
                         >
-                          Margine Siply
+                          Margine GDA
                         </Spiega>
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {pctScontato !== null && <span style={{ color: margineScontato >= 0 ? C.green : C.magenta, fontSize: '12px', fontWeight: 700, backgroundColor: alpha(margineScontato >= 0 ? C.green : C.magenta, 0.15), padding: '2px 7px', borderRadius: '20px' }}>{pctScontato >= 0 ? '+' : ''}{pctScontato.toFixed(1)}%</span>}
-                        <span style={{ color: margineScontato >= 0 ? C.green : C.magenta, fontSize: '18px', fontWeight: 800 }}>{margineScontato >= 0 ? '+' : ''}€{margineScontato.toFixed(2)}</span>
+                        {pctGda !== null && <span style={{ color: margineGda >= 0 ? C.green : C.magenta, fontSize: '12px', fontWeight: 700, backgroundColor: alpha(margineGda >= 0 ? C.green : C.magenta, 0.15), padding: '2px 7px', borderRadius: '20px' }}>{pctGda >= 0 ? '+' : ''}{pct(pctGda)}%</span>}
+                        <span style={{ color: margineGda >= 0 ? C.green : C.magenta, fontSize: '18px', fontWeight: 800 }}>{margineGda >= 0 ? '+' : ''}€{eur(margineGda)}</span>
                       </div>
                     </div>
                   )}
@@ -1234,155 +1268,189 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
             onNote={setNoteSpedizione}
           />
 
-          {/* Stima vendite sull'intero GDA */}
+          {/* Obiettivi di vendita sull'intero GDA */}
           <div style={{ backgroundColor: C.white, borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
             <div style={{ padding: '14px 20px', backgroundColor: alpha(C.dark, 0.03), borderBottom: `1px solid ${alpha(C.dark, 0.06)}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon.Bersaglio size={16} />
-              <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Stima vendite del GDA</p>
+              <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Obiettivi di vendita</p>
             </div>
             <div style={{ padding: '16px 20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>
-                Bottiglie totali che stimi di vendere
+                <Spiega k="obiettivi">Quante bottiglie punti a vendere</Spiega>
               </label>
               <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>
-                Su tutte le casse del GDA. Serve a calcolare i ricavi attesi a target raggiunto. Massimo {TARGET_MAX.toLocaleString('it-IT')} bottiglie.
+                Su tutte le casse del GDA. Puoi fissarne più di uno — un traguardo minimo e altri più ambiziosi — e vedere per ognuno quanto porti a casa. Massimo {num(MAX_BOTTIGLIE)} bottiglie per obiettivo.
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px', padding: '12px 16px', border: `1.5px solid ${targetBottiglie ? C.magenta : alpha(C.dark, 0.1)}`, transition: 'border-color 0.2s' }}>
-                <Icon.Bottiglia size={22} />
-                <input
-                  type="number"
-                  min="1"
-                  max={TARGET_MAX}
-                  placeholder="es. 1200"
-                  value={targetBottiglie}
-                  onChange={e => setTargetBottiglie(clampTarget(e.target.value))}
-                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.dark, fontSize: '22px', fontWeight: 800 }}
-                />
-                <span style={{ color: C.gray, fontSize: '13px', flexShrink: 0 }}>bottiglie</span>
-              </div>
-              {targetLimitato && (
+
+              {/* Gli obiettivi già fissati: si tolgono con la × */}
+              {obiettivi.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                  <AnimatePresence initial={false}>
+                    {obiettivi.map(n => (
+                      <motion.div
+                        key={n} layout
+                        variants={M.V.pop} initial="initial" animate="animate" exit="exit"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: alpha(C.magenta, 0.08), border: `1.5px solid ${alpha(C.magenta, 0.35)}`, borderRadius: '12px', padding: '8px 8px 8px 12px' }}
+                      >
+                        <span style={{ color: C.magenta, fontSize: '15px', fontWeight: 800 }}>{num(n)}</span>
+                        <span style={{ color: C.gray, fontSize: '12px' }}>bt</span>
+                        <M.IconButton
+                          onClick={() => setObiettivi(p => p.filter(x => x !== n))}
+                          title={`Togli l'obiettivo di ${num(n)} bottiglie`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: alpha(C.dark, 0.35), fontSize: '16px', lineHeight: 1, padding: '0 2px' }}
+                        >×</M.IconButton>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {obiettivi.length < MAX_OBIETTIVI && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px', padding: '12px 12px 12px 16px', border: `1.5px solid ${nuovoObiettivo ? C.magenta : alpha(C.dark, 0.1)}`, transition: 'border-color 0.2s' }}>
+                  <Icon.Bottiglia size={22} />
+                  <input
+                    type="number"
+                    min="1"
+                    max={MAX_BOTTIGLIE}
+                    placeholder={obiettivi.length === 0 ? 'es. 1200' : 'un altro traguardo'}
+                    value={nuovoObiettivo}
+                    onChange={e => setNuovoObiettivo(clampObiettivo(e.target.value))}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aggiungiObiettivo() } }}
+                    style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: C.dark, fontSize: '20px', fontWeight: 800 }}
+                  />
+                  <M.Chip
+                    type="button"
+                    onClick={aggiungiObiettivo}
+                    disabled={!nuovoObiettivo}
+                    style={{
+                      flexShrink: 0, backgroundColor: nuovoObiettivo ? C.magenta : alpha(C.dark, 0.1),
+                      color: nuovoObiettivo ? C.bg : alpha(C.dark, 0.35),
+                      border: 'none', borderRadius: '10px', padding: '9px 14px',
+                      fontSize: '13px', fontWeight: 700, cursor: nuovoObiettivo ? 'pointer' : 'default',
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    Aggiungi
+                  </M.Chip>
+                </div>
+              )}
+              {obiettivoLimitato && (
                 <p style={{ color: C.magenta, fontSize: '12px', fontWeight: 600, marginTop: '8px' }}>
-                  Il massimo consentito è {TARGET_MAX.toLocaleString('it-IT')} bottiglie.
+                  Il massimo consentito è {num(MAX_BOTTIGLIE)} bottiglie.
+                </p>
+              )}
+              {obiettivi.length >= MAX_OBIETTIVI && (
+                <p style={{ color: C.gray, fontSize: '12px', marginTop: '4px' }}>
+                  Hai fissato {MAX_OBIETTIVI} obiettivi: è il massimo. Togline uno per aggiungerne un altro.
                 </p>
               )}
             </div>
           </div>
 
-          {/* Stima ricavi a target, calcolata su tutte le casse del GDA */}
+          {/* Stima ricavi per ogni obiettivo, calcolata su tutte le casse del GDA */}
           {(() => {
-            const target = parseInt(targetBottiglie)
-            if (!target || target <= 0) return null
+            if (obiettivi.length === 0) return null
 
-            let sumPrezzoScontato = 0, sumPrezzoAcquistoSiply = 0, sumCostoProduttore = 0, totalW = 0
+            let sumPrezzoScontato = 0, sumCostoProduttore = 0, totalW = 0
             for (const c of casseAggiunte) {
               for (const r of righeCassa(c)) {
                 totalW += r.qty
                 sumPrezzoScontato += (r.ps > 0 ? r.ps : r.listino) * r.qty
-                sumPrezzoAcquistoSiply += r.paS * r.qty
                 sumCostoProduttore += r.cp * r.qty
               }
             }
             if (totalW === 0) return null
 
             const avgPS = sumPrezzoScontato / totalW
-            const avgPAS = sumPrezzoAcquistoSiply / totalW
             const avgCP = sumCostoProduttore / totalW
-
-            const ricavoGDA = target * avgPS
-            const ricavoProduttore = avgPAS > 0 ? target * avgPAS : null
-            const ricavoSiply = avgPAS > 0 ? target * (avgPS - avgPAS) : null
-            const margineProduttore = avgCP > 0 && ricavoProduttore != null ? ricavoProduttore - target * avgCP : null
 
             return (
               <div style={{ backgroundColor: C.dark, borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.14)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                   <Icon.Trend size={18} />
                   <p style={{ color: alpha(C.silver, 0.5), fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    Stima ricavi a target ({target.toLocaleString('it-IT')} bt)
+                    Stima ricavi per obiettivo
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${alpha(C.white, 0.07)}` }}>
-                    <span style={{ color: alpha(C.silver, 0.5), fontSize: '13px' }}>
-                      <Spiega
-                        k="valoreGda"
-                        calcolo={`€${avgPS.toFixed(2)} × ${target.toLocaleString('it-IT')} bt = €${ricavoGDA.toFixed(2)}`}
-                      >
-                        Valore totale GDA
-                      </Spiega>
-                    </span>
-                    <span style={{ color: C.bg, fontSize: '16px', fontWeight: 700 }}>€ {ricavoGDA.toFixed(2)}</span>
+                {/* La divisione è sempre la stessa a qualunque obiettivo: sta
+                    una volta sola in cima, non ripetuta a ogni riga. */}
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ height: '8px', borderRadius: '4px', backgroundColor: alpha(C.white, 0.1), overflow: 'hidden', display: 'flex' }}>
+                    <div style={{ flex: 1 - COMMISSIONE, backgroundColor: C.ocra, borderRadius: '4px 0 0 4px' }} />
+                    <div style={{ flex: COMMISSIONE, backgroundColor: C.green, borderRadius: '0 4px 4px 0' }} />
                   </div>
-
-                  <div style={{ padding: '12px 0', borderBottom: ricavoSiply != null ? `1px solid ${alpha(C.white, 0.07)}` : 'none' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: margineProduttore != null ? '4px' : '0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: C.ocra }} />
-                        <span style={{ color: alpha(C.silver, 0.5), fontSize: '13px' }}>
-                          <Spiega
-                            k="ricavoProduttore"
-                            calcolo={ricavoProduttore != null
-                              ? `€${avgPAS.toFixed(2)} × ${target.toLocaleString('it-IT')} bt = €${ricavoProduttore.toFixed(2)}`
-                              : undefined}
-                          >
-                            Ricavo produttore
-                          </Spiega>
-                        </span>
-                      </div>
-                      <span style={{ color: C.ocra, fontSize: '18px', fontWeight: 800 }}>
-                        {ricavoProduttore != null ? `€ ${ricavoProduttore.toFixed(2)}` : '—'}
-                      </span>
-                    </div>
-                    {margineProduttore != null && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <Spiega
-                          k="margineNetto"
-                          calcolo={`€${(ricavoProduttore ?? 0).toFixed(2)} − €${(avgCP * target).toFixed(2)} = ${margineProduttore >= 0 ? '+' : ''}€${margineProduttore.toFixed(2)}`}
-                          style={{ color: margineProduttore >= 0 ? C.green : C.magenta }}
-                        >
-                          <span style={{ fontSize: '12px', fontWeight: 700, backgroundColor: alpha(margineProduttore >= 0 ? C.green : C.magenta, 0.15), padding: '2px 8px', borderRadius: '20px' }}>
-                            margine netto {margineProduttore >= 0 ? '+' : ''}€{margineProduttore.toFixed(2)}
-                          </span>
-                        </Spiega>
-                      </div>
-                    )}
-                    {ricavoProduttore == null && (
-                      <p style={{ color: alpha(C.silver, 0.45), fontSize: '12.5px', marginTop: '5px', lineHeight: 1.45 }}>
-                        Inserisci il prezzo acquisto Siply nel passo Dettagli per calcolare
-                      </p>
-                    )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                    <span style={{ color: C.ocra, fontSize: '11.5px', fontWeight: 600 }}>Tu {QUOTA_PCT}</span>
+                    <span style={{ color: C.green, fontSize: '11.5px', fontWeight: 600 }}>Siply {COMMISSIONE_PCT}</span>
                   </div>
-
-                  {ricavoSiply != null && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: C.green }} />
-                        <span style={{ color: alpha(C.silver, 0.5), fontSize: '13px' }}>
-                          <Spiega
-                            k="ricavoSiply"
-                            calcolo={`€${(avgPS - avgPAS).toFixed(2)} × ${target.toLocaleString('it-IT')} bt = €${ricavoSiply.toFixed(2)}`}
-                          >
-                            Ricavo Siply
-                          </Spiega>
-                        </span>
-                      </div>
-                      <span style={{ color: C.green, fontSize: '18px', fontWeight: 800 }}>€ {ricavoSiply.toFixed(2)}</span>
-                    </div>
-                  )}
                 </div>
 
-                {ricavoProduttore != null && ricavoSiply != null && ricavoGDA > 0 && (
-                  <div style={{ marginTop: '16px' }}>
-                    <div style={{ height: '8px', borderRadius: '4px', backgroundColor: alpha(C.white, 0.1), overflow: 'hidden', display: 'flex' }}>
-                      <div style={{ width: `${(ricavoProduttore / ricavoGDA) * 100}%`, backgroundColor: C.ocra, borderRadius: '4px 0 0 4px', transition: 'width 0.4s' }} />
-                      <div style={{ width: `${(ricavoSiply / ricavoGDA) * 100}%`, backgroundColor: C.green, borderRadius: '0 4px 4px 0', transition: 'width 0.4s' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-                      <span style={{ color: C.ocra, fontSize: '11.5px', fontWeight: 600 }}>Produttore {((ricavoProduttore / ricavoGDA) * 100).toFixed(0)}%</span>
-                      <span style={{ color: C.green, fontSize: '11.5px', fontWeight: 600 }}>Siply {((ricavoSiply / ricavoGDA) * 100).toFixed(0)}%</span>
-                    </div>
-                  </div>
+                <AnimatePresence initial={false}>
+                  {obiettivi.map((n, i) => {
+                    const valore = n * avgPS
+                    const quotaSiply = commissione(valore)
+                    const incasso = alProduttore(valore)
+                    const costo = avgCP * n
+                    const netto = avgCP > 0 ? incasso - costo : null
+                    return (
+                      <motion.div
+                        key={n} layout
+                        variants={M.V.item} initial="initial" animate="animate" exit="exit"
+                        style={{ padding: '12px 0', borderTop: i > 0 ? `1px solid ${alpha(C.white, 0.07)}` : 'none' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                          <span style={{ flexShrink: 0, color: C.bg, fontSize: '13px', fontWeight: 700, backgroundColor: alpha(C.white, 0.1), padding: '4px 10px', borderRadius: '20px' }}>
+                            {num(n)} bt
+                          </span>
+                          <div style={{ textAlign: 'right', minWidth: 0 }}>
+                            <p style={{ color: alpha(C.silver, 0.5), fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                              <Spiega
+                                k="ricavoProduttore"
+                                calcolo={`€${eur(valore)} × ${QUOTA_PCT} = €${eur(incasso)}`}
+                              >
+                                Incassi tu
+                              </Spiega>
+                            </p>
+                            <p style={{ color: C.ocra, fontSize: '20px', fontWeight: 800, lineHeight: 1.2 }}>€ {eur(incasso)}</p>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '6px 12px', marginTop: '6px' }}>
+                          <Spiega
+                            k="valoreGda"
+                            calcolo={`€${eur(avgPS)} × ${num(n)} bt = €${eur(valore)}`}
+                            style={{ color: alpha(C.silver, 0.5) }}
+                          >
+                            <span style={{ fontSize: '12px' }}>valore €{eur(valore)}</span>
+                          </Spiega>
+                          <Spiega
+                            k="commissioneSiply"
+                            calcolo={`€${eur(valore)} × ${COMMISSIONE_PCT} = €${eur(quotaSiply)}`}
+                            style={{ color: C.green }}
+                          >
+                            <span style={{ fontSize: '12px' }}>Siply €{eur(quotaSiply)}</span>
+                          </Spiega>
+                          {netto !== null && (
+                            <Spiega
+                              k="margineNetto"
+                              calcolo={`€${eur(incasso)} − €${eur(costo)} = ${netto >= 0 ? '+' : ''}€${eur(netto)}`}
+                              style={{ color: netto >= 0 ? C.green : C.magenta }}
+                            >
+                              <span style={{ fontSize: '12px', fontWeight: 700, backgroundColor: alpha(netto >= 0 ? C.green : C.magenta, 0.15), padding: '2px 8px', borderRadius: '20px' }}>
+                                netto {netto >= 0 ? '+' : ''}€{eur(netto)}
+                              </span>
+                            </Spiega>
+                          )}
+                        </div>
+                      </motion.div>
+                    )
+                  })}
+                </AnimatePresence>
+
+                {avgCP === 0 && (
+                  <p style={{ color: alpha(C.silver, 0.45), fontSize: '12.5px', marginTop: '10px', lineHeight: 1.45 }}>
+                    Scrivi il costo di produzione nel passo Dettagli per vedere anche quanto ti resta netto.
+                  </p>
                 )}
               </div>
             )
@@ -1881,7 +1949,7 @@ interface CreaBottigliaForm {
   name: string
   barcode: string
   list_price: string
-  siply_cost: string
+  costo_produzione: string
   producer: string
   image_url: string
   cantina: string
@@ -1900,7 +1968,7 @@ const FORM_DEFAULTS: CreaBottigliaForm = {
   name: 'Barolo DOCG 2019',
   barcode: '8001234567890',
   list_price: '30',
-  siply_cost: '18',
+  costo_produzione: '18',
   producer: 'Cantina Rossi',
   image_url: 'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=200&h=300&fit=crop&auto=format',
   cantina: 'Cantina Rossi',
@@ -2031,8 +2099,8 @@ function CreaBottigliaSheet({ onClose, onCreata }: { onClose: () => void; onCrea
                   {errors.list_price && <p style={{ color: '#e53e3e', fontSize: '11px', marginTop: '3px' }}>{errors.list_price}</p>}
                 </div>
                 <div>
-                  <label style={labelStyle}>Costo Siply (€)</label>
-                  <input type="number" style={fieldStyle()} value={form.siply_cost} onChange={set('siply_cost')} placeholder="18.00" />
+                  <label style={labelStyle}>Costo di produzione (€)</label>
+                  <input type="number" style={fieldStyle()} value={form.costo_produzione} onChange={set('costo_produzione')} placeholder="18.00" />
                 </div>
               </div>
               <div>

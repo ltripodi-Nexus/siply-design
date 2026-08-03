@@ -1,5 +1,6 @@
 import { C, alpha } from '../colors'
 import { cassaTotale, gdaBottiglie, gdaTotale, type Cassa, type Gda } from '../App'
+import { num } from '../economia'
 import * as M from '../motion'
 import { STATUS } from '../status'
 import { scrollToFooter } from '../components/Footer'
@@ -106,9 +107,13 @@ export default function GdaDetailScreen({ gda, onBack }: Props) {
             <InfoRow label="Data creazione" value={new Date(gda.dataCreazione).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })} />
             <InfoRow label="Casse nel GDA" value={`${gda.casse.length} cass${gda.casse.length === 1 ? 'a' : 'e'}`} />
             <InfoRow label="Numero bottiglie" value={`${bottiglie} bottigli${bottiglie === 1 ? 'a' : 'e'}`} />
-            <InfoRow label="Vini diversi" value={String(viniDiversi)} last={gda.targetBottiglie == null} />
-            {gda.targetBottiglie != null && (
-              <InfoRow label="Stima vendite" value={`${gda.targetBottiglie.toLocaleString('it-IT')} bottiglie`} last />
+            <InfoRow label="Vini diversi" value={String(viniDiversi)} last={!gda.obiettivi?.length} />
+            {gda.obiettivi && gda.obiettivi.length > 0 && (
+              <InfoRow
+                label={gda.obiettivi.length === 1 ? 'Obiettivo di vendita' : 'Obiettivi di vendita'}
+                value={`${gda.obiettivi.map(num).join(' · ')} bottiglie`}
+                last
+              />
             )}
           </div>
         </M.Item>

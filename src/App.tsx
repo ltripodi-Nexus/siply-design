@@ -48,9 +48,10 @@ export interface Cassa {
   note?: string
   // Dati economici inseriti nel wizard, per id vino. Stanno qui e non nel wizard
   // così una bozza ripresa ritrova i prezzi già battuti.
+  // Quanto incassa il produttore non si scrive: è il prezzo scontato meno la
+  // commissione Siply (vedi src/economia.ts).
   prezziScontati?: Record<string, string>
   costiUnitari?: Record<string, string>
-  costiScontati?: Record<string, string>
 }
 
 /** `bozza` = creazione mai finalizzata, modificabile e non ancora vista da Siply. */
@@ -63,8 +64,10 @@ export interface Gda {
   status: GdaStatus
   dataCreazione: string
   casse: Cassa[]
-  /** bottiglie totali che il produttore stima di vendere sull'intero GDA */
-  targetBottiglie?: number
+  /** Obiettivi di bottiglie sull'intero GDA, in ordine crescente. Più di uno:
+   *  il gruppo può fermarsi al primo scaglione o arrivare in fondo, e ognuno
+   *  ha la sua stima di ricavi. */
+  obiettivi?: number[]
   /** Indirizzo da cui parte la merce. Vale per tutto il GDA, non per la singola
    *  cassa: si spedisce dalla cantina, non da una cassa. */
   locationSpedizione?: string
@@ -77,7 +80,7 @@ export interface Gda {
 export interface GdaPayload {
   nome: string
   casse: Cassa[]
-  targetBottiglie?: number
+  obiettivi?: number[]
   locationSpedizione?: string
   noteSpedizione?: string
 }
@@ -119,6 +122,7 @@ const mockGda: Gda[] = [
     note: 'Perfetto per il mercato nordeuropeo',
     locationSpedizione: 'Via delle Cantine 12, Montalcino (SI) — Toscana',
     noteSpedizione: 'Per ordini oltre le 20 casse si spedisce dal deposito di Firenze.',
+    obiettivi: [600, 1200, 2400],
     casse: [
       { id: 'c1', nome: 'Estate Selection 2019', bottiglia: mockBottiglie[0], quantita: 6 },
       { id: 'c2', nome: 'Grandi Rossi Piemontesi', bottiglia: mockBottiglie[1], quantita: 6 },
@@ -130,6 +134,7 @@ const mockGda: Gda[] = [
     status: 'pending_approval',
     dataCreazione: '2025-04-28',
     locationSpedizione: 'Via delle Cantine 12, Montalcino (SI) — Toscana',
+    obiettivi: [900],
     casse: [
       { id: 'c3', nome: 'Toscana Classica', bottiglia: mockBottiglie[2], quantita: 6 },
     ],
@@ -175,14 +180,14 @@ export default function App() {
 
   /** Il wizard consegna il GDA completo, oppure le nuove casse per un GDA esistente. */
   const handleCreata = (gdaId: string | null, d: GdaPayload) => {
-    const { nome, casse, targetBottiglie, locationSpedizione, noteSpedizione } = d
+    const { nome, casse, obiettivi, locationSpedizione, noteSpedizione } = d
     if (gdaId) {
       setGdaList(p => p.map(g => {
         if (g.id !== gdaId) return g
         // una bozza inviata diventa un GDA in attesa e porta con sé tutte le sue casse
         return g.status === 'bozza'
-          ? { ...g, nome: nome.trim() || g.nome, status: 'pending_approval', casse, targetBottiglie, locationSpedizione, noteSpedizione }
-          : { ...g, casse: [...g.casse, ...casse], targetBottiglie, locationSpedizione, noteSpedizione }
+          ? { ...g, nome: nome.trim() || g.nome, status: 'pending_approval', casse, obiettivi, locationSpedizione, noteSpedizione }
+          : { ...g, casse: [...g.casse, ...casse], obiettivi, locationSpedizione, noteSpedizione }
       }))
     } else {
       const nuovo: Gda = {
@@ -191,7 +196,7 @@ export default function App() {
         status: 'pending_approval',
         dataCreazione: new Date().toISOString().split('T')[0],
         casse,
-        targetBottiglie,
+        obiettivi,
         locationSpedizione,
         noteSpedizione,
       }
@@ -203,7 +208,7 @@ export default function App() {
 
   /** Il wizard chiama questa uscendo senza inviare: quello che c'è resta come bozza. */
   const handleBozza = (gdaId: string | null, d: GdaPayload) => {
-    const { nome, casse, targetBottiglie, locationSpedizione, noteSpedizione } = d
+    const { nome, casse, obiettivi, locationSpedizione, noteSpedizione } = d
     // anche il solo indirizzo di partenza è lavoro fatto: vale la pena salvarlo
     const vuota = casse.length === 0 && !nome.trim() && !locationSpedizione?.trim()
 
@@ -212,7 +217,7 @@ export default function App() {
       if (vuota) { setGdaList(p => p.filter(g => !(g.id === gdaId && g.status === 'bozza'))); return }
       setGdaList(p => p.map(g =>
         g.id === gdaId && g.status === 'bozza'
-          ? { ...g, nome: nome.trim() || g.nome, casse, targetBottiglie, locationSpedizione, noteSpedizione }
+          ? { ...g, nome: nome.trim() || g.nome, casse, obiettivi, locationSpedizione, noteSpedizione }
           : g,
       ))
       return
@@ -225,7 +230,7 @@ export default function App() {
       status: 'bozza',
       dataCreazione: new Date().toISOString().split('T')[0],
       casse,
-      targetBottiglie,
+      obiettivi,
       locationSpedizione,
       noteSpedizione,
     }

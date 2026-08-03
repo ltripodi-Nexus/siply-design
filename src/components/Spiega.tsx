@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { C, alpha } from '../colors'
+import { COMMISSIONE_PCT, QUOTA_PCT } from '../economia'
 import * as M from '../motion'
 import { motion, AnimatePresence } from '../motion'
 
@@ -81,20 +82,27 @@ const VOCI = {
     cosa: 'Quanto ti costa una bottiglia fra uva, lavorazione, vetro, tappo ed etichetta. È un dato tuo: non lo vede chi compra, serve qui dentro per calcolare quanto ci guadagni.',
     nota: 'Non si calcola: lo scrivi tu.',
   },
-  acquistoSiply: {
-    titolo: 'Prezzo acquisto Siply',
-    cosa: 'Il prezzo a cui vendi una bottiglia a Siply. È quello che incassi davvero tu su ogni bottiglia venduta nel gruppo, e sta in mezzo fra il tuo costo e il prezzo scontato.',
-    nota: 'Lo proponi tu e lo confermiamo quando approviamo il GDA.',
+  incassoBottiglia: {
+    titolo: 'Quanto incassi tu',
+    cosa: `Quello che ti arriva davvero in tasca per ogni bottiglia venduta nel gruppo. Non lo scrivi tu: è il prezzo scontato GDA meno la commissione di Siply, che è sempre il ${COMMISSIONE_PCT}.`,
+    formula: `prezzo scontato GDA × ${QUOTA_PCT}`,
+    nota: `Il ${QUOTA_PCT} è quello che resta una volta tolto il ${COMMISSIONE_PCT} di commissione.`,
+  },
+  commissioneSiply: {
+    titolo: 'Commissione Siply',
+    cosa: `Quello che tiene Siply per il servizio: una quota fissa del ${COMMISSIONE_PCT} su quanto incassa il gruppo. Non è la differenza fra due prezzi decisi a mano — è una percentuale sul venduto, uguale per tutti.`,
+    formula: `fatturato × ${COMMISSIONE_PCT}`,
+    nota: "Si paga solo a obiettivo raggiunto: è allora che Siply compra le bottiglie. Se il gruppo non arriva all'obiettivo non compra nessuno e non deve niente nessuno.",
   },
   margineListino: {
     titolo: 'Margine a listino',
     cosa: 'Quanto ti resta in tasca vendendo al prezzo pieno, tolto quello che hai speso per produrre.',
     formula: 'prezzo di listino − costo di produzione',
   },
-  margineSiply: {
-    titolo: 'Margine Siply',
-    cosa: 'La parte che tiene Siply: la differenza fra quello che paga chi compra e quello che arriva a te. È il compenso del servizio.',
-    formula: 'prezzo scontato GDA − prezzo acquisto Siply',
+  margineGda: {
+    titolo: 'Margine GDA',
+    cosa: 'Quanto ti resta in tasca vendendo dentro al gruppo: quello che incassi meno quello che hai speso per produrre. È il numero da confrontare con il margine a listino per capire se il gruppo ti conviene.',
+    formula: 'quanto incassi − costo di produzione',
   },
 
   /* ── Riepiloghi ────────────────────────────────────────────────────────── */
@@ -121,36 +129,35 @@ const VOCI = {
     cosa: "Quanto vale, ai prezzi di listino, tutto quello che hai messo in questo gruppo d'acquisto: tutte le casse insieme.",
     formula: 'totale prima cassa + totale seconda cassa + …',
   },
-  acquistoSiplyTot: {
-    titolo: 'Prezzo acquisto Siply (totale)',
-    cosa: 'Quanto ti riconosce Siply per tutta la cassa, se si vende per intero.',
-    formula: 'prezzo acquisto Siply × bottiglie',
-    nota: 'Si fa per ogni vino, poi si somma.',
+  incassoCassa: {
+    titolo: 'Quanto incassi tu (cassa intera)',
+    cosa: 'Quanto ti resta di questa cassa, se si vende tutta, tolta la commissione Siply.',
+    formula: `ricavo GDA scontato × ${QUOTA_PCT}`,
   },
 
-  /* ── Stima a target ────────────────────────────────────────────────────── */
+  /* ── Stima a obiettivo ─────────────────────────────────────────────────── */
+  obiettivi: {
+    titolo: 'Obiettivi di vendita',
+    cosa: "Quante bottiglie punti a vendere in tutto il gruppo. Puoi fissarne più di uno: il gruppo può fermarsi al primo scaglione o tirare fino all'ultimo, e per ognuno vedi quanto porti a casa.",
+    nota: "Non si calcola: li decidi tu. Sono una stima, non un impegno — servono a farsi due conti prima di partire.",
+  },
   valoreGda: {
     titolo: 'Valore totale GDA',
-    cosa: "Quanto incassa il gruppo d'acquisto se arriva all'obiettivo di bottiglie che hai fissato. Attenzione: è il giro d'affari, non il tuo guadagno — dentro c'è anche la parte di Siply.",
+    cosa: "Quanto incassa il gruppo d'acquisto arrivando a questo obiettivo: è il giro d'affari, il fatturato. Attenzione, non è il tuo guadagno — dentro c'è anche la commissione di Siply.",
     formula: 'stima del prezzo a bottiglia × bottiglie obiettivo',
-    nota: 'La stima è la media dei prezzi scontati di tutte le bottiglie che hai messo nelle casse, contate una per una: un vino che c\'è in tre bottiglie pesa il triplo di uno che c\'è in una sola.',
+    nota: "La stima è la media dei prezzi scontati di tutte le bottiglie che hai messo nelle casse, contate una per una: un vino che c'è in tre bottiglie pesa il triplo di uno che c'è in una sola.",
   },
   ricavoProduttore: {
-    titolo: 'Ricavo produttore',
-    cosa: "Quanto incassi tu se il gruppo arriva all'obiettivo. È la tua fetta del valore totale.",
-    formula: 'stima del prezzo a bottiglia × bottiglie obiettivo',
-    nota: "La stima è la media dei prezzi acquisto Siply di tutte le bottiglie delle casse, contate una per una. Vale finché le casse si vendono nelle proporzioni in cui le hai composte.",
-  },
-  ricavoSiply: {
-    titolo: 'Ricavo Siply',
-    cosa: "Quanto resta a Siply su tutto il gruppo, dopo aver pagato te. È l'altra fetta del valore totale.",
-    formula: 'stima del margine a bottiglia × bottiglie obiettivo',
-    nota: 'Il margine a bottiglia è il prezzo scontato meno il prezzo acquisto Siply, mediato su tutte le bottiglie delle casse.',
+    titolo: 'Quanto incassi tu',
+    cosa: "Quanto ti arriva se il gruppo raggiunge questo obiettivo: il fatturato meno la commissione di Siply.",
+    formula: `valore totale GDA × ${QUOTA_PCT}`,
+    nota: 'Vale finché le casse si vendono più o meno nelle proporzioni in cui le hai composte.',
   },
   margineNetto: {
     titolo: 'Margine netto',
-    cosa: "Il tuo guadagno vero a obiettivo raggiunto: quello che incassi meno quello che hai speso per produrre le bottiglie.",
-    formula: 'ricavo produttore − costo di produzione totale',
+    cosa: "Il tuo guadagno vero a obiettivo raggiunto: quello che incassi meno quello che ti è costato produrre quelle bottiglie.",
+    formula: 'quanto incassi − costo di produzione totale',
+    nota: 'Il costo di produzione è la media dei costi che hai scritto, moltiplicata per le bottiglie obiettivo.',
   },
 } satisfies Record<string, Voce>
 
