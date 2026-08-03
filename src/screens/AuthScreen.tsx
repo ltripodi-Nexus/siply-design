@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { C, alpha } from '../colors'
 import { useDemo, DEMO_AUTH } from '../demo'
 import * as M from '../motion'
-import { motion, AnimatePresence } from '../motion'
+import { motion, AnimatePresence, useReducedMotion } from '../motion'
 import * as Icon from '../components/Icons'
 
 interface Props {
@@ -40,9 +40,7 @@ export default function AuthScreen({ onLogin }: Props) {
             così il gruppo resta davvero al centro dello spazio libero. */}
         <M.List style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px' }}>
           <M.Item>
-            <span style={{ display: 'block', color: C.magenta, fontSize: '11px', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '6px' }}>
-              GDA
-            </span>
+            <TitoloGda />
           </M.Item>
           {/* Niente `maxWidth` sul logo: la percentuale si misurava sul
               contenitore, che è largo quanto il logo stesso, quindi non faceva
@@ -144,6 +142,72 @@ export default function AuthScreen({ onLogin }: Props) {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+/* ── Occhiello sopra al logo ─────────────────────────────────────────────── */
+
+const FRASE = "Gruppi d'acquisto"
+/** Posizioni delle lettere che formano la sigla: **G**ruppi **d**'**a**cquisto. */
+const SIGLA = new Set([0, 7, 9])
+
+/**
+ * L'occhiello dice per esteso cos'è un GDA, poi si accorcia nella sigla: le
+ * lettere di troppo se ne vanno e le tre che restano scivolano al loro posto.
+ * Così chi non conosce l'acronimo lo impara guardandolo formarsi.
+ *
+ * Si alterna ogni 5 secondi. Chi ha chiesto meno movimento nelle preferenze di
+ * sistema vede la frase per esteso, ferma: un testo che cambia da solo senza
+ * che nessuno l'abbia chiesto è esattamente ciò da cui si vuole stare alla
+ * larga.
+ */
+function TitoloGda() {
+  const ridotto = useReducedMotion()
+  const [sigla, setSigla] = useState(false)
+
+  useEffect(() => {
+    if (ridotto) return
+    const t = setInterval(() => setSigla(s => !s), 5000)
+    return () => clearInterval(t)
+  }, [ridotto])
+
+  const lettere = [...FRASE]
+    .map((ch, i) => ({ ch, i }))
+    .filter(({ i }) => !sigla || SIGLA.has(i))
+
+  return (
+    <span
+      style={{
+        position: 'relative', display: 'flex', justifyContent: 'center',
+        color: C.magenta, fontSize: '15px', fontWeight: 600,
+        letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '6px',
+      }}
+    >
+      {/* Spezzata in singole lettere il testo è illeggibile per uno screen
+          reader: la frase intera resta qui, invisibile ma annunciabile. */}
+      <span style={{ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap' }}>
+        {FRASE}
+      </span>
+
+      {/* `popLayout` toglie subito dal flusso la lettera che esce, così le
+          altre si stringono mentre quella sfuma invece che dopo. */}
+      <AnimatePresence mode="popLayout" initial={false}>
+        {lettere.map(({ ch, i }) => (
+          <motion.span
+            key={i}
+            layout
+            aria-hidden
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={M.T.collapse}
+            style={{ display: 'inline-block', whiteSpace: 'pre' }}
+          >
+            {ch}
+          </motion.span>
+        ))}
+      </AnimatePresence>
+    </span>
   )
 }
 

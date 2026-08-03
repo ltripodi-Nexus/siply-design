@@ -1,5 +1,5 @@
 import { forwardRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
-import { motion, AnimatePresence, type Transition, type Variants } from 'motion/react'
+import { motion, AnimatePresence, useReducedMotion, type Transition, type Variants } from 'motion/react'
 
 /**
  * Sistema di animazione di Siply.
@@ -338,4 +338,4 @@ export function Ticker({ value, style }: { value: string | number; style?: CSSPr
   )
 }
 
-export { motion, AnimatePresence }
+export { motion, AnimatePresence, useReducedMotion }
