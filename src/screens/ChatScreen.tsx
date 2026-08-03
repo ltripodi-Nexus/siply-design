@@ -154,7 +154,7 @@ export default function ChatScreen({ user: _user, gdaList: tutti, openGdaId, onO
       {openId && openGda ? (
         <motion.div
           key="thread"
-          className="siply-page"
+          className="siply-page siply-chat"
           variants={M.stepVariants(1)} initial="initial" animate="animate" exit="exit"
         >
           <ChatThread
@@ -312,7 +312,7 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
   const [allegati, setAllegati] = useState<Allegato[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [dettaglio, setDettaglio] = useState<Allegato | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useDemo(m => {
     if (m === 'clear') { setInput(''); setAllegati([]); return }
@@ -325,8 +325,13 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
   const statusColor = STATUS[gda.status].light
   const puoInviare = canSend && (input.trim().length > 0 || allegati.length > 0)
 
+  /* Scorre la lista dei messaggi, non la pagina: `scrollIntoView` muoveva ogni
+     antenato scrollabile, finestra compresa, e la barra di scrittura si
+     staccava dal fondo dello schermo. */
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const box = scrollRef.current
+    if (!box) return
+    box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' })
   }, [messages, typing])
 
   const send = () => {
@@ -342,9 +347,9 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
     setAllegati(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       {/* Header */}
-      <div style={{ backgroundColor: C.dark, padding: '52px 20px 16px' }}>
+      <div style={{ backgroundColor: C.dark, padding: '52px 20px 16px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <M.IconButton
             onClick={onBack}
@@ -383,7 +388,7 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
 
       {/* Closed banner */}
       {!canSend && (
-        <div style={{ backgroundColor: alpha(C.dark, 0.06), borderBottom: `1px solid ${alpha(C.dark, 0.08)}`, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ backgroundColor: alpha(C.dark, 0.06), borderBottom: `1px solid ${alpha(C.dark, 0.08)}`, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
           <Icon.Lucchetto size={18} />
           <p style={{ color: C.gray, fontSize: '13px', lineHeight: 1.45 }}>
             Questo GDA è <strong style={{ color: C.dark }}>{STATUS_LABEL[gda.status].toLowerCase()}</strong> — la conversazione è in sola lettura.
@@ -392,7 +397,7 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
+      <div ref={scrollRef} className="siply-chat-messaggi" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 0', gap: '8px' }}>
             <Icon.Chat size={40} />
@@ -432,12 +437,11 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
           </motion.div>
           )}
         </AnimatePresence>
-        <div ref={bottomRef} />
       </div>
 
       {/* Input */}
       {canSend ? (
-        <div style={{ backgroundColor: C.bg, borderTop: `1px solid ${alpha(C.dark, 0.08)}` }}>
+        <div style={{ backgroundColor: C.bg, borderTop: `1px solid ${alpha(C.dark, 0.08)}`, flexShrink: 0 }}>
           {/* Allegati in attesa di invio — ogni chip fa "pop" quando entra ed esce */}
           <M.Collapse open={allegati.length > 0}>
             <div style={{ padding: '10px 16px 0', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -509,7 +513,7 @@ function ChatThread({ gda, messages, canSend, onSend, onBack }: {
           </div>
         </div>
       ) : (
-        <div style={{ padding: '14px 20px', backgroundColor: alpha(C.dark, 0.04), borderTop: `1px solid ${alpha(C.dark, 0.08)}`, textAlign: 'center' }}>
+        <div style={{ padding: '14px 20px', backgroundColor: alpha(C.dark, 0.04), borderTop: `1px solid ${alpha(C.dark, 0.08)}`, textAlign: 'center', flexShrink: 0 }}>
           <p style={{ color: alpha(C.dark, 0.35), fontSize: '13px' }}>
             Chat non disponibile per GDA {STATUS_LABEL[gda.status].toLowerCase()}
           </p>

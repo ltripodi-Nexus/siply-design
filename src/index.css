@@ -90,6 +90,34 @@
     flex: 1;
   }
 
+  /* Il thread della chat è l'eccezione: sta in una schermata sola e non
+     cresce col numero di messaggi. Altrimenti la conversazione allungava la
+     pagina, la barra di scrittura finiva sotto la piega e lo scorrimento
+     automatico all'ultimo messaggio trascinava su mezzo footer.
+     L'altezza è quella libera fra le due nav: da tablet la nav sta in alto,
+     su telefono in basso, ma in entrambi i casi occupa `--siply-nav-h`.
+     Va dopo `.siply-page > *`, che ha la stessa specificità: vince l'ultima. */
+  .siply-chat {
+    flex: 0 0 auto;
+    height: calc(100vh - var(--siply-nav-h, 68px));
+    height: calc(100dvh - var(--siply-nav-h, 68px));
+    min-height: 0;
+  }
+
+  .siply-chat > * {
+    min-height: 0;
+  }
+
+  /* A scorrere sono i messaggi, non la pagina. `overscroll-behavior` impedisce
+     che arrivati in fondo la spinta prosegua sulla finestra tirando su il
+     footer, cioè esattamente ciò che si voleva evitare. */
+  .siply-chat-messaggi {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
   .siply-footer {
     flex-shrink: 0;
   }

@@ -15,6 +15,9 @@ const SPIA = 26
 /** Ogni quanto ricorda che c'è, e per quanto resta fuori. */
 const OGNI = 14000
 const DURATA_SPIA = 1600
+/** Quanto aspetta, col menu aperto, prima di richiudersi da solo quando il
+ *  puntatore se ne va: il tempo di rientrare se lo si è superato per sbaglio. */
+const GRAZIA = 700
 
 /** FAB delle demo: riempie tutti i campi della schermata corrente con dati
  *  mock, così si possono mostrare le funzionalità senza compilare a mano.
@@ -42,6 +45,11 @@ export default function DemoFab() {
   const btnRef = useRef<HTMLButtonElement>(null)
   const attesa = useRef<number | null>(null)
   const rientro = useRef<number | null>(null)
+  const chiusura = useRef<number | null>(null)
+  /** Appena usato: si toglie di mezzo e non rientra finché il puntatore non se
+   *  n'è andato davvero. Senza, il timer di prossimità lo richiamerebbe fuori
+   *  dopo un attimo, visto che il mouse è rimasto lì sopra. */
+  const congedo = useRef(false)
   /** Punto in cui è iniziato il tocco: serve a capire se è stato un clic o un
    *  trascinamento. Confrontare le coordinate è più affidabile che affidarsi
    *  all'ordine fra `onDragEnd` e `onClick`, che non è garantito. */
@@ -88,7 +96,14 @@ export default function DemoFab() {
 
   const annulla = () => {
     if (attesa.current !== null) { clearTimeout(attesa.current); attesa.current = null }
+    if (chiusura.current !== null) { clearTimeout(chiusura.current); chiusura.current = null }
   }
+
+  /** Richiude tutto e lo rimanda fuori campo. */
+  const chiudi = () => { annulla(); setOpen(false); setVicino(false) }
+
+  /** Come sopra, ma dopo un uso: resta fuori finché il puntatore non se ne va. */
+  const ritira = () => { congedo.current = true; chiudi() }
 
   useEffect(() => {
     if (touch || hidden) return
@@ -100,16 +115,50 @@ export default function DemoFab() {
       const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right)
       const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom)
       if (Math.hypot(dx, dy) < RAGGIO) {
-        if (vicino || attesa.current !== null) return
+        // rientrato in tempo: la chiusura in corso si annulla
+        if (chiusura.current !== null) { clearTimeout(chiusura.current); chiusura.current = null }
+        if (congedo.current || vicino || attesa.current !== null) return
         attesa.current = window.setTimeout(() => setVicino(true), RITARDO)
       } else {
         annulla()
+        congedo.current = false   // se n'è andato davvero: la prossima volta rientra
         if (vicino) setVicino(false)
+        // Il menu aperto lo terrebbe in scena all'infinito: si richiude da solo.
+        if (open) chiusura.current = window.setTimeout(() => { chiusura.current = null; setOpen(false) }, GRAZIA)
       }
     }
     window.addEventListener('pointermove', onMove)
     return () => { window.removeEventListener('pointermove', onMove); annulla() }
-  }, [touch, hidden, vicino])
+  }, [touch, hidden, vicino, open])
+
+  /* ── Rientro senza puntatore ──────────────────────────────────────────── */
+
+  // Uscendo dalla finestra i `pointermove` smettono di arrivare: senza questo
+  // resterebbe fuori per sempre, perché nessuno gli direbbe mai che è solo.
+  useEffect(() => {
+    if (touch || hidden) return
+    const via = () => chiudi()
+    document.addEventListener('mouseleave', via)
+    window.addEventListener('blur', via)
+    return () => {
+      document.removeEventListener('mouseleave', via)
+      window.removeEventListener('blur', via)
+    }
+  }, [touch, hidden])
+
+  // Un tocco altrove lo congeda: sui dispositivi touch è l'unico modo per
+  // rimandarlo fuori, non essendoci un puntatore che si allontana.
+  useEffect(() => {
+    if (hidden || !(open || vicino)) return
+    const fuori = (e: PointerEvent) => {
+      if (wrapRef.current?.contains(e.target as Node)) return
+      ritira()
+    }
+    window.addEventListener('pointerdown', fuori)
+    return () => window.removeEventListener('pointerdown', fuori)
+  }, [hidden, open, vicino])
+
+  useEffect(() => () => annulla(), [])
 
   /* ── Capolino periodico ───────────────────────────────────────────────── */
 
@@ -138,10 +187,12 @@ export default function DemoFab() {
     if (r) setMenuSotto(r.top < window.innerHeight * 0.4)
   }
 
+  // Usata una voce, il suo lavoro è finito: si richiude e torna fuori campo,
+  // senza aspettare che qualcuno lo mandi via.
   const act = (fn: () => void) => (e: React.MouseEvent) => {
     if (!eClic(e)) return
     fn()
-    setOpen(false)
+    ritira()
   }
 
   const inScena = open || vicino || trascina
