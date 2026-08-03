@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Siply Design System</title>
+<style>
+  @font-face { font-family: 'Formiga'; font-weight: 300; font-display: swap; src: url('/fonts/Formiga-Light.woff2') format('woff2'); }
+  @font-face { font-family: 'Formiga'; font-weight: 400; font-display: swap; src: url('/fonts/Formiga-Regular.woff2') format('woff2'); }
+  @font-face { font-family: 'Formiga'; font-weight: 500; font-display: swap; src: url('/fonts/Formiga-Medium.woff2') format('woff2'); }
+  @font-face { font-family: 'Formiga'; font-weight: 600; font-display: swap; src: url('/fonts/Formiga-Semibold.woff2') format('woff2'); }
+  @font-face { font-family: 'Formiga'; font-weight: 800; font-display: swap; src: url('/fonts/Formiga-Extrabold.woff2') format('woff2'); }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Formiga', sans-serif; }
+  body { background: #E5E1E6; padding: 48px 24px; }
+  .section { margin-bottom: 64px; }
+  .section-title { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #6E716F; margin-bottom: 24px; padding-bottom: 10px; border-bottom: 1px solid rgba(33,39,33,0.1); }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .swatch { width: 80px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .swatch-circle { width: 80px; height: 80px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.06); }
+  .swatch-name { font-size: 10px; font-weight: 600; color: #212721; text-align: center; }
+  .swatch-hex { font-size: 9px; color: #6E716F; text-align: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; font-family: 'Formiga', sans-serif; }
+  .btn-primary { background: #910048; color: #E5E1E6; padding: 16px 28px; border-radius: 16px; font-size: 15px; font-weight: 600; }
+  .btn-secondary { background: rgba(145,0,72,0.1); color: #910048; padding: 16px 28px; border-radius: 16px; font-size: 15px; font-weight: 600; }
+  .btn-dark { background: #212721; color: #E5E1E6; padding: 16px 28px; border-radius: 16px; font-size: 15px; font-weight: 600; }
+  .btn-ghost { background: rgba(33,39,33,0.07); color: #212721; padding: 16px 28px; border-radius: 16px; font-size: 15px; font-weight: 600; }
+  .btn-sm { padding: 10px 18px !important; border-radius: 12px !important; font-size: 13px !important; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .badge-pending { background: rgba(198,170,118,0.18); color: #645B3F; }
+  .badge-approved { background: rgba(112,133,115,0.18); color: #3D4D40; }
+  .badge-refused { background: rgba(145,0,72,0.12); color: #910048; }
+  .badge-bio { background: rgba(112,133,115,0.2); color: #3D4D40; }
+  .badge-denom { background: rgba(33,39,33,0.08); color: #212721; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .input { background: #fff; border: 1.5px solid rgba(33,39,33,0.14); border-radius: 14px; padding: 14px 16px; font-size: 14px; color: #212721; font-family: 'Formiga', sans-serif; outline: none; width: 100%; }
+  .input-dark { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.18); color: #E5E1E6; }
+  textarea.input { resize: none; min-height: 80px; }
+  .card { background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+  .card-dark { background: #212721; border-radius: 20px; overflow: hidden; }
+  .bottom-nav { background: #212721; border-radius: 20px; display: flex; overflow: hidden; }
+  .nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 18px; }
+  .nav-tab-label { font-size: 11px; font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div style="margin-bottom:56px;">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px;">
+    <div style="width:44px;height:44px;background:#910048;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E5E1E6" stroke-width="2" stroke-linecap="round"><path d="M12 2C6 2 2 6 2 12s4 10 10 10 10-4 10-10S18 2 12 2"/><path d="M8 12h8M12 8v8"/></svg>
+    </div>
+    <div>
+      <h1 style="font-size:28px;font-weight:800;color:#212721;line-height:1;">Siply Design System</h1>
+      <p style="font-size:13px;color:#6E716F;margin-top:2px;">Condividi sorsi senza rimorsi — GDA</p>
+    </div>
+  </div>
+</div>
+
+<!-- 1. COLOR TOKENS -->
+<div class="section">
+  <p class="section-title">1 · Color Tokens</p>
+  <div class="row">
+    <div class="swatch"><div class="swatch-circle" style="background:#E5E1E6;"></div><div class="swatch-name">bg</div><div class="swatch-hex">#E5E1E6</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#212721;"></div><div class="swatch-name">dark</div><div class="swatch-hex">#212721</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#910048;"></div><div class="swatch-name">magenta</div><div class="swatch-hex">#910048</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#708573;"></div><div class="swatch-name">green</div><div class="swatch-hex">#708573</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#C6AA76;"></div><div class="swatch-name">ocra</div><div class="swatch-hex">#C6AA76</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#6E716F;"></div><div class="swatch-name">gray</div><div class="swatch-hex">#6E716F</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#3D4D40;"></div><div class="swatch-name">forest</div><div class="swatch-hex">#3D4D40</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#645B3F;"></div><div class="swatch-name">olive</div><div class="swatch-hex">#645B3F</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#501731;"></div><div class="swatch-name">plum</div><div class="swatch-hex">#501731</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#BDBBBE;"></div><div class="swatch-name">silver</div><div class="swatch-hex">#BDBBBE</div></div>
+    <div class="swatch"><div class="swatch-circle" style="background:#FFFFFF;border:1px solid #ddd;"></div><div class="swatch-name">white</div><div class="swatch-hex">#FFFFFF</div></div>
+  </div>
+</div>
+
+<!-- 2. TYPOGRAPHY -->
+<div class="section">
+  <p class="section-title">2 · Typography — Formiga</p>
+  <div style="background:#fff;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:20px;">
+    <div style="font-size:36px;font-weight:800;color:#212721;line-height:1.1;">Condividi sorsi<br/>senza rimorsi</div>
+    <div style="font-size:26px;font-weight:800;color:#212721;">Heading / 800 — 26px</div>
+    <div style="font-size:22px;font-weight:600;color:#212721;">Subheading / 600 — 22px</div>
+    <div style="font-size:18px;font-weight:600;color:#212721;">Title / 600 — 18px</div>
+    <div style="font-size:15px;font-weight:500;color:#212721;">Body Medium / 500 — 15px</div>
+    <div style="font-size:14px;font-weight:400;color:#6E716F;">Body Regular / 400 — 14px — Il testo normale della piattaforma usa questo stile per descrizioni e contenuti secondari.</div>
+    <div style="font-size:12px;font-weight:600;color:#910048;text-transform:uppercase;letter-spacing:0.08em;">Label / 600 uppercase — 12px</div>
+    <div style="font-size:11px;font-weight:500;color:#6E716F;">Caption / 500 — 11px</div>
+  </div>
+</div>
+
+<!-- 3. BUTTONS -->
+<div class="section">
+  <p class="section-title">3 · Buttons</p>
+  <div class="row" style="align-items:center;">
+    <button class="btn btn-primary">Crea Cassa</button>
+    <button class="btn btn-secondary">Annulla</button>
+    <button class="btn btn-dark">Invia Richiesta</button>
+    <button class="btn btn-ghost">Esplora Catalogo</button>
+    <button class="btn btn-primary btn-sm">Conferma</button>
+    <button class="btn btn-secondary btn-sm">Modifica</button>
+    <button class="btn btn-ghost btn-sm">Dettagli</button>
+  </div>
+  <div style="margin-top:16px;max-width:360px;display:flex;flex-direction:column;gap:10px;">
+    <button class="btn btn-primary" style="width:100%;padding:18px;border-radius:18px;font-size:16px;">Invia la tua Cassa &rarr;</button>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1;padding:16px;border-radius:14px;font-size:14px;">&larr; Indietro</button>
+      <button class="btn btn-primary" style="flex:2;padding:16px;border-radius:14px;font-size:14px;">Avanti &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. BADGES -->
+<div class="section">
+  <p class="section-title">4 · Badges &amp; Status Chips</p>
+  <div class="row" style="align-items:center;flex-wrap:wrap;gap:10px;">
+    <span class="badge badge-pending"><span class="dot" style="background:#C6AA76;"></span>In attesa</span>
+    <span class="badge badge-approved"><span class="dot" style="background:#708573;"></span>Approvata</span>
+    <span class="badge badge-refused"><span class="dot" style="background:#910048;"></span>Rifiutata</span>
+    <span class="badge badge-bio">&#127807; Biologico</span>
+    <span class="badge badge-denom">DOCG</span>
+    <span class="badge badge-denom">DOC</span>
+    <span class="badge badge-denom">IGT</span>
+    <span class="badge" style="background:rgba(61,77,64,0.12);color:#3D4D40;">Toscana</span>
+    <span class="badge" style="background:rgba(198,170,118,0.18);color:#645B3F;">Sangiovese</span>
+    <span class="badge" style="background:rgba(110,113,111,0.12);color:#6E716F;">Medio</span>
+    <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(145,0,72,0.12);color:#910048;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;">Toscana <span style="font-size:15px;line-height:1;">&times;</span></span>
+    <span class="badge" style="background:rgba(33,39,33,0.08);color:#6E716F;">&#128274; Chiusa</span>
+  </div>
+</div>
+
+<!-- 5. INPUTS -->
+<div class="section">
+  <p class="section-title">5 · Inputs &amp; Form</p>
+  <div class="row">
+    <div style="display:flex;flex-direction:column;gap:6px;width:280px;">
+      <label style="font-size:12px;font-weight:600;color:#212721;">Nome Cassa</label>
+      <input class="input" type="text" placeholder="es. Estate Selection 2024" />
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;width:280px;">
+      <label style="font-size:12px;font-weight:600;color:#212721;">Nome Cassa (focused)</label>
+      <input class="input" type="text" value="Barolo Collection" style="border-color:#910048;" />
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;width:280px;">
+      <label style="font-size:12px;font-weight:600;color:#212721;">Note aggiuntive</label>
+      <textarea class="input" placeholder="Aggiungi una nota..."></textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;width:280px;">
+      <label style="font-size:12px;font-weight:600;color:#212721;">Search Bar</label>
+      <div style="position:relative;">
+        <svg style="position:absolute;left:14px;top:50%;transform:translateY(-50%);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6E716F" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21" stroke-linecap="round"/></svg>
+        <input class="input" type="text" placeholder="Cerca vino, produttore, vitigno..." style="padding-left:40px;" />
+      </div>
+    </div>
+  </div>
+  <div style="background:#212721;border-radius:20px;padding:24px;margin-top:16px;display:flex;flex-wrap:wrap;gap:16px;">
+    <div style="display:flex;flex-direction:column;gap:6px;width:240px;">
+      <label style="font-size:12px;font-weight:600;color:#BDBBBE;">Email</label>
+      <input class="input input-dark" type="email" placeholder="marco@cantina.it" />
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;width:240px;">
+      <label style="font-size:12px;font-weight:600;color:#BDBBBE;">Password</label>
+      <input class="input input-dark" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" />
+    </div>
+  </div>
+</div>
+
+<!-- 6. WINE CARDS -->
+<div class="section">
+  <p class="section-title">6 · Wine Cards</p>
+  <div class="row">
+    <!-- Catalog card -->
+    <div class="card" style="width:220px;">
+      <div style="height:130px;background:rgba(61,77,64,0.1);position:relative;overflow:hidden;">
+        <img src="https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=300&h=200&fit=crop&auto=format" alt="wine" style="width:100%;height:100%;object-fit:cover;" />
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(33,39,33,0.5) 0%,transparent 60%);"></div>
+        <div style="position:absolute;top:10px;left:10px;display:flex;gap:5px;">
+          <span class="badge badge-denom" style="background:rgba(33,39,33,0.75);color:#E5E1E6;font-size:10px;padding:3px 8px;">DOCG</span>
+          <span class="badge badge-bio" style="font-size:10px;padding:3px 8px;">&#127807; Bio</span>
+        </div>
+        <span style="position:absolute;bottom:10px;right:12px;color:#E5E1E6;font-size:20px;font-weight:800;">&#8364;42</span>
+      </div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:8px;">
+        <div>
+          <p style="color:#212721;font-weight:700;font-size:14px;line-height:1.3;">Brunello di Montalcino</p>
+          <p style="color:#6E716F;font-size:12px;margin-top:2px;">Cantina Ferretti &middot; 2019</p>
+        </div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <span class="badge" style="background:rgba(112,133,115,0.15);color:#3D4D40;font-size:11px;padding:2px 8px;">Toscana</span>
+          <span class="badge" style="background:rgba(198,170,118,0.18);color:#645B3F;font-size:11px;padding:2px 8px;">Sangiovese</span>
+          <span class="badge" style="background:rgba(110,113,111,0.12);color:#6E716F;font-size:11px;padding:2px 8px;">Pieno</span>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:rgba(33,39,33,0.5);background:rgba(33,39,33,0.05);padding:2px 7px;border-radius:20px;">Carne</span>
+          <span style="font-size:11px;color:rgba(33,39,33,0.5);background:rgba(33,39,33,0.05);padding:2px 7px;border-radius:20px;">Formaggi</span>
+        </div>
+        <button class="btn btn-primary" style="padding:10px;border-radius:12px;font-size:13px;margin-top:4px;">Crea cassa &rarr; &#8364;252</button>
+      </div>
+    </div>
+
+    <!-- Selection card default -->
+    <div style="width:340px;display:flex;flex-direction:column;gap:10px;">
+      <div class="card" style="display:flex;align-items:stretch;border-radius:16px;">
+        <div style="flex:1;padding:14px 14px 14px 16px;display:flex;flex-direction:column;gap:6px;justify-content:center;">
+          <div style="display:flex;gap:5px;"><span class="badge badge-denom" style="font-size:10px;padding:2px 7px;">DOCG</span><span class="badge badge-bio" style="font-size:10px;padding:2px 7px;">&#127807; Bio</span></div>
+          <p style="color:#212721;font-weight:700;font-size:14px;line-height:1.3;">Brunello di Montalcino</p>
+          <p style="color:#6E716F;font-size:12px;">Cantina Ferretti &middot; 2019</p>
+          <div style="display:flex;gap:4px;"><span class="badge" style="background:rgba(112,133,115,0.15);color:#3D4D40;font-size:11px;padding:2px 7px;">Toscana</span></div>
+        </div>
+        <div style="border-left:1px solid rgba(33,39,33,0.07);padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-width:80px;">
+          <p style="font-size:17px;font-weight:800;color:#212721;">&#8364;42</p>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <button style="width:34px;height:34px;border-radius:10px;background:#910048;color:#fff;border:none;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
+            <span style="font-size:16px;font-weight:800;color:#212721;">0</span>
+            <button style="width:34px;height:34px;border-radius:10px;background:rgba(145,0,72,0.1);color:#910048;border:none;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&minus;</button>
+          </div>
+        </div>
+      </div>
+      <!-- Selected state -->
+      <div class="card" style="display:flex;align-items:stretch;border-radius:16px;border:2px solid #910048;">
+        <div style="flex:1;padding:14px 14px 14px 16px;display:flex;flex-direction:column;gap:6px;justify-content:center;">
+          <div style="display:flex;gap:5px;"><span class="badge badge-denom" style="font-size:10px;padding:2px 7px;">DOC</span></div>
+          <p style="color:#212721;font-weight:700;font-size:14px;line-height:1.3;">Barolo Cannubi</p>
+          <p style="color:#6E716F;font-size:12px;">Tenute Rossi &middot; 2018</p>
+          <div style="display:flex;gap:4px;"><span class="badge" style="background:rgba(112,133,115,0.15);color:#3D4D40;font-size:11px;padding:2px 7px;">Piemonte</span></div>
+        </div>
+        <div style="border-left:1px solid rgba(145,0,72,0.2);padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-width:80px;background:rgba(145,0,72,0.04);">
+          <p style="font-size:17px;font-weight:800;color:#212721;">&#8364;58</p>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <button style="width:34px;height:34px;border-radius:10px;background:#910048;color:#fff;border:none;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
+            <span style="font-size:16px;font-weight:800;color:#910048;">6</span>
+            <button style="width:34px;height:34px;border-radius:10px;background:rgba(145,0,72,0.1);color:#910048;border:none;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&minus;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 7. CASSA CARDS -->
+<div class="section">
+  <p class="section-title">7 · Cassa Cards — Status Variants</p>
+  <div class="row">
+    <div class="card" style="width:300px;">
+      <div style="background:rgba(112,133,115,0.12);padding:16px 18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span class="badge badge-approved"><span class="dot" style="background:#708573;"></span>Approvata</span>
+          <span style="font-size:11px;color:#6E716F;">12 mar 2025</span>
+        </div>
+        <p style="font-weight:800;font-size:16px;color:#212721;">Estate Selection 2019</p>
+        <p style="font-size:13px;color:#6E716F;margin-top:2px;">Brunello di Montalcino &middot; &#8364;42/bt</p>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;color:#6E716F;">Bottiglie</span><span style="font-size:13px;font-weight:700;color:#212721;">6 bt</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(33,39,33,0.07);"><span style="font-size:13px;font-weight:600;color:#212721;">Totale</span><span style="font-size:16px;font-weight:800;color:#910048;">&#8364;252</span></div>
+      </div>
+    </div>
+    <div class="card" style="width:300px;">
+      <div style="background:rgba(198,170,118,0.15);padding:16px 18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span class="badge badge-pending"><span class="dot" style="background:#C6AA76;"></span>In attesa</span>
+          <span style="font-size:11px;color:#6E716F;">28 apr 2025</span>
+        </div>
+        <p style="font-weight:800;font-size:16px;color:#212721;">Grandi Rossi Piemontesi</p>
+        <p style="font-size:13px;color:#6E716F;margin-top:2px;">Barolo Cannubi &middot; &#8364;58/bt</p>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;color:#6E716F;">Bottiglie</span><span style="font-size:13px;font-weight:700;color:#212721;">6 bt</span></div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(33,39,33,0.07);"><span style="font-size:13px;font-weight:600;color:#212721;">Totale</span><span style="font-size:16px;font-weight:800;color:#910048;">&#8364;348</span></div>
+      </div>
+    </div>
+    <div class="card" style="width:300px;">
+      <div style="background:rgba(145,0,72,0.07);padding:16px 18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span class="badge badge-refused"><span class="dot" style="background:#910048;"></span>Rifiutata</span>
+          <span style="font-size:11px;color:#6E716F;">15 feb 2025</span>
+        </div>
+        <p style="font-weight:800;font-size:16px;color:#212721;">Toscana Classica</p>
+        <p style="font-size:13px;color:#6E716F;margin-top:2px;">Chianti Classico &middot; &#8364;24/bt</p>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:13px;color:#6E716F;">Bottiglie</span><span style="font-size:13px;font-weight:700;color:#212721;">6 bt</span></div>
+        <p style="font-size:12px;color:#910048;background:rgba(145,0,72,0.07);padding:8px 12px;border-radius:10px;">Non rientra nella fascia di prezzo</p>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid rgba(33,39,33,0.07);"><span style="font-size:13px;font-weight:600;color:#212721;">Totale</span><span style="font-size:16px;font-weight:800;color:#6E716F;text-decoration:line-through;">&#8364;144</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 8. STEP PROGRESS -->
+<div class="section">
+  <p class="section-title">8 · Step Progress — NuovaCassa</p>
+  <div style="background:#fff;border-radius:20px;padding:24px;max-width:360px;">
+    <div style="display:flex;align-items:center;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:#910048;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;">1</div>
+        <span style="font-size:10px;font-weight:600;color:#910048;">Scegli</span>
+      </div>
+      <div style="flex:1;height:2px;background:#910048;margin-bottom:14px;"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:#910048;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;">2</div>
+        <span style="font-size:10px;font-weight:600;color:#910048;">Dettagli</span>
+      </div>
+      <div style="flex:1;height:2px;background:rgba(33,39,33,0.15);margin-bottom:14px;"></div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(33,39,33,0.1);display:flex;align-items:center;justify-content:center;color:#6E716F;font-size:13px;font-weight:700;">3</div>
+        <span style="font-size:10px;font-weight:600;color:#6E716F;">Invia</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 9. PRICE BREAKDOWN -->
+<div class="section">
+  <p class="section-title">9 · Price Breakdown — Dettagli Cassa</p>
+  <div style="max-width:360px;">
+    <div class="card-dark" style="padding:20px;display:flex;align-items:center;gap:16px;margin-bottom:12px;">
+      <div style="width:56px;height:56px;border-radius:14px;overflow:hidden;flex-shrink:0;">
+        <img src="https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=100&h=100&fit=crop&auto=format" style="width:100%;height:100%;object-fit:cover;" />
+      </div>
+      <div style="flex:1;min-width:0;">
+        <p style="color:#E5E1E6;font-weight:800;font-size:16px;line-height:1.2;">Brunello di Montalcino</p>
+        <p style="color:rgba(189,187,190,0.6);font-size:13px;margin-top:2px;">Cantina Ferretti &middot; 2019</p>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <span class="badge badge-denom" style="background:rgba(255,255,255,0.1);color:#BDBBBE;font-size:10px;padding:2px 7px;">DOCG</span>
+        </div>
+      </div>
+      <button style="background:rgba(255,255,255,0.1);border:none;color:#BDBBBE;font-size:12px;font-weight:600;padding:8px 12px;border-radius:10px;cursor:pointer;font-family:inherit;">Cambia</button>
+    </div>
+    <div style="background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;">
+      <p style="font-size:12px;font-weight:600;color:#6E716F;margin-bottom:12px;">La tua cassa — 6 bottiglie</p>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;justify-items:center;">
+        <div style="width:28px;height:56px;background:linear-gradient(to bottom,#3D4D40,#212721);border-radius:4px 4px 6px 6px;position:relative;"><div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div></div>
+        <div style="width:28px;height:56px;background:linear-gradient(to bottom,#3D4D40,#212721);border-radius:4px 4px 6px 6px;position:relative;"><div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div></div>
+        <div style="width:28px;height:56px;background:linear-gradient(to bottom,#3D4D40,#212721);border-radius:4px 4px 6px 6px;position:relative;"><div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div></div>
+        <div style="width:28px;height:56px;background:linear-gradient(to bottom,#3D4D40,#212721);border-radius:4px 4px 6px 6px;position:relative;"><div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div></div>
+        <div style="width:28px;height:56px;background:linear-gradient(to bottom,#3D4D40,#212721);border-radius:4px 4px 6px 6px;position:relative;"><div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div></div>
+        <div style="width:28px;height:56px;background:linear-gradient(to bottom,#3D4D40,#212721);border-radius:4px 4px 6px 6px;position:relative;"><div style="position:absolute;top:4px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);"></div></div>
+      </div>
+    </div>
+    <div style="background:#fff;border-radius:16px;overflow:hidden;">
+      <div style="padding:14px 16px;display:flex;justify-content:space-between;border-bottom:1px solid rgba(33,39,33,0.06);">
+        <span style="font-size:14px;color:#6E716F;">Prezzo per bottiglia</span><span style="font-size:14px;font-weight:600;color:#212721;">&#8364;42,00</span>
+      </div>
+      <div style="padding:14px 16px;display:flex;justify-content:space-between;border-bottom:1px solid rgba(33,39,33,0.06);">
+        <span style="font-size:14px;color:#6E716F;">Bottiglie</span><span style="font-size:14px;font-weight:600;color:#212721;">&times; 6</span>
+      </div>
+      <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;background:rgba(145,0,72,0.05);">
+        <span style="font-size:15px;font-weight:700;color:#212721;">Totale cassa</span><span style="font-size:24px;font-weight:800;color:#910048;">&#8364;252,00</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 10. RECAP CARD -->
+<div class="section">
+  <p class="section-title">10 · Recap Card — Conferma Invio</p>
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:340px;">
+    <div class="card-dark">
+      <div style="padding:20px;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <p style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:rgba(189,187,190,0.5);text-transform:uppercase;margin-bottom:4px;">Riepilogo Cassa</p>
+        <p style="font-size:20px;font-weight:800;color:#E5E1E6;">Estate Selection 2019</p>
+      </div>
+      <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">&#127863;</span>
+          <div><p style="font-size:11px;color:rgba(189,187,190,0.5);font-weight:600;">Vino</p><p style="font-size:14px;font-weight:600;color:#E5E1E6;">Brunello di Montalcino 2019</p></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">&#128230;</span>
+          <div><p style="font-size:11px;color:rgba(189,187,190,0.5);font-weight:600;">Quantit&agrave;</p><p style="font-size:14px;font-weight:600;color:#E5E1E6;">6 bottiglie</p></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;">&#127963;</span>
+          <div><p style="font-size:11px;color:rgba(189,187,190,0.5);font-weight:600;">Denominazione</p><p style="font-size:14px;font-weight:600;color:#E5E1E6;">DOCG &middot; Toscana</p></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="font-size:14px;font-weight:700;color:#E5E1E6;">Totale cassa</span>
+          <span style="font-size:22px;font-weight:800;color:#910048;">&#8364;252,00</span>
+        </div>
+      </div>
+    </div>
+    <div style="background:rgba(112,133,115,0.15);border:1px solid rgba(112,133,115,0.3);border-radius:14px;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">&#9989;</span>
+      <div>
+        <p style="font-size:13px;font-weight:700;color:#3D4D40;margin-bottom:2px;">Cosa succede dopo?</p>
+        <p style="font-size:12px;color:#3D4D40;line-height:1.5;">Il team Siply ti contatter&agrave; via chat entro 48 ore. Riceverai una notifica appena la cassa sar&agrave; approvata.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 11. CHAT -->
+<div class="section">
+  <p class="section-title">11 · Chat Components</p>
+  <div class="row">
+    <!-- Chat list -->
+    <div style="width:320px;display:flex;flex-direction:column;gap:2px;">
+      <p style="font-size:11px;font-weight:700;color:#6E716F;text-transform:uppercase;letter-spacing:0.08em;padding:0 4px;margin-bottom:6px;">Conversazioni attive</p>
+      <div style="background:#fff;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+        <div style="position:relative;flex-shrink:0;">
+          <div style="width:44px;height:44px;border-radius:14px;background:#212721;display:flex;align-items:center;justify-content:center;font-size:20px;">&#128230;</div>
+          <div style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#708573;border:2px solid #fff;"></div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <p style="font-size:14px;font-weight:700;color:#212721;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Grandi Rossi Piemontesi</p>
+          <p style="font-size:12px;color:#6E716F;margin-top:2px;">Siply: Abbiamo ricevuto la tua richiesta!</p>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+          <span style="font-size:11px;color:#6E716F;">14:22</span>
+          <div style="width:18px;height:18px;border-radius:50%;background:#910048;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;">2</div>
+        </div>
+      </div>
+      <p style="font-size:11px;font-weight:700;color:#6E716F;text-transform:uppercase;letter-spacing:0.08em;padding:0 4px;margin-top:12px;margin-bottom:6px;">Conversazioni chiuse</p>
+      <div style="background:rgba(255,255,255,0.5);border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:12px;opacity:0.75;">
+        <div style="position:relative;flex-shrink:0;">
+          <div style="width:44px;height:44px;border-radius:14px;background:rgba(33,39,33,0.12);display:flex;align-items:center;justify-content:center;font-size:20px;">&#128230;</div>
+          <div style="position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:#BDBBBE;border:2px solid #E5E1E6;"></div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <p style="font-size:14px;font-weight:700;color:#6E716F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Estate Selection 2019</p>
+            <span class="badge" style="background:rgba(33,39,33,0.08);color:#6E716F;font-size:9px;padding:1px 6px;">&#128274;</span>
+          </div>
+          <p style="font-size:12px;color:#BDBBBE;margin-top:2px;">Cassa approvata &middot; Chat chiusa</p>
+        </div>
+        <span style="font-size:11px;color:#BDBBBE;">mar</span>
+      </div>
+    </div>
+    <!-- Chat thread (active) -->
+    <div style="width:300px;">
+      <div style="background:#fff;border-radius:20px 20px 0 0;padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(33,39,33,0.07);">
+        <span style="font-size:20px;color:#6E716F;cursor:pointer;">&#8249;</span>
+        <div style="flex:1;">
+          <p style="font-weight:700;font-size:15px;color:#212721;">Grandi Rossi Piemontesi</p>
+          <span class="badge badge-pending"><span class="dot" style="background:#C6AA76;"></span>In attesa</span>
+        </div>
+      </div>
+      <div style="background:rgba(33,39,33,0.03);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:160px;">
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="width:28px;height:28px;border-radius:10px;background:#212721;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">&#127863;</div>
+          <div style="background:#fff;border-radius:16px 16px 16px 4px;padding:10px 14px;max-width:200px;">
+            <p style="font-size:13px;color:#212721;line-height:1.4;">Ciao! Abbiamo ricevuto la tua richiesta per la cassa <strong>Grandi Rossi Piemontesi</strong>.</p>
+            <p style="font-size:10px;color:#BDBBBE;margin-top:4px;">14:20</p>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <div style="background:#910048;border-radius:16px 16px 4px 16px;padding:10px 14px;max-width:200px;">
+            <p style="font-size:13px;color:#fff;line-height:1.4;">Perfetto, grazie! Quando avrete risposta?</p>
+            <p style="font-size:10px;color:rgba(255,255,255,0.6);margin-top:4px;">14:22</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div style="width:28px;height:28px;border-radius:10px;background:#212721;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;">&#127863;</div>
+          <div style="background:#fff;border-radius:16px 16px 16px 4px;padding:12px 16px;display:flex;gap:5px;align-items:center;">
+            <div style="width:7px;height:7px;border-radius:50%;background:#BDBBBE;"></div>
+            <div style="width:7px;height:7px;border-radius:50%;background:#BDBBBE;"></div>
+            <div style="width:7px;height:7px;border-radius:50%;background:#BDBBBE;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#fff;border-radius:0 0 20px 20px;padding:12px 14px;display:flex;gap:10px;align-items:center;border-top:1px solid rgba(33,39,33,0.07);">
+        <input type="text" placeholder="Scrivi un messaggio..." style="flex:1;border:none;background:rgba(33,39,33,0.05);border-radius:12px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;color:#212721;" />
+        <button style="width:38px;height:38px;border-radius:12px;background:#910048;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 12. INFO BOXES -->
+<div class="section">
+  <p class="section-title">12 · Info &amp; Notification Boxes</p>
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:380px;">
+    <div style="background:rgba(112,133,115,0.15);border:1px solid rgba(112,133,115,0.3);border-radius:14px;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">&#9989;</span>
+      <div><p style="font-size:13px;font-weight:700;color:#3D4D40;margin-bottom:2px;">Cassa inviata con successo!</p><p style="font-size:12px;color:#3D4D40;line-height:1.5;">Il team Siply ti contatter&agrave; via chat entro 48 ore.</p></div>
+    </div>
+    <div style="background:rgba(198,170,118,0.15);border:1px solid rgba(198,170,118,0.3);border-radius:14px;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">&#9203;</span>
+      <div><p style="font-size:13px;font-weight:700;color:#645B3F;margin-bottom:2px;">In attesa di approvazione</p><p style="font-size:12px;color:#645B3F;line-height:1.5;">La tua cassa &egrave; in revisione. Riceverai una notifica presto.</p></div>
+    </div>
+    <div style="background:rgba(145,0,72,0.07);border:1px solid rgba(145,0,72,0.2);border-radius:14px;padding:14px 16px;display:flex;gap:10px;align-items:flex-start;">
+      <span style="font-size:18px;flex-shrink:0;">&#10060;</span>
+      <div><p style="font-size:13px;font-weight:700;color:#910048;margin-bottom:2px;">Cassa rifiutata</p><p style="font-size:12px;color:#910048;line-height:1.5;">Non rientra nella fascia di prezzo della selezione attiva.</p></div>
+    </div>
+    <div style="background:#212721;border-radius:14px;padding:14px 16px;display:flex;gap:10px;align-items:center;">
+      <span style="font-size:22px;">&#128172;</span>
+      <div style="flex:1;"><p style="font-size:13px;font-weight:700;color:#E5E1E6;">Hai messaggi non letti</p><p style="font-size:12px;color:rgba(189,187,190,0.6);">Siply ha risposto alle tue casse</p></div>
+      <button style="background:#910048;color:#fff;border:none;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Vai &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- 13. DASHBOARD STATS -->
+<div class="section">
+  <p class="section-title">13 · Dashboard Stat Cards</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <div style="background:#fff;border-radius:16px;padding:16px 18px;min-width:130px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-size:11px;font-weight:600;color:#708573;text-transform:uppercase;letter-spacing:0.06em;">Approvate</span>
+      <span style="font-size:32px;font-weight:800;color:#212721;line-height:1;">1</span>
+      <span style="font-size:11px;color:#6E716F;">casse</span>
+    </div>
+    <div style="background:#fff;border-radius:16px;padding:16px 18px;min-width:130px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-size:11px;font-weight:600;color:#C6AA76;text-transform:uppercase;letter-spacing:0.06em;">In attesa</span>
+      <span style="font-size:32px;font-weight:800;color:#212721;line-height:1;">1</span>
+      <span style="font-size:11px;color:#6E716F;">casse</span>
+    </div>
+    <div style="background:#fff;border-radius:16px;padding:16px 18px;min-width:130px;display:flex;flex-direction:column;gap:4px;">
+      <span style="font-size:11px;font-weight:600;color:#910048;text-transform:uppercase;letter-spacing:0.06em;">Rifiutate</span>
+      <span style="font-size:32px;font-weight:800;color:#212721;line-height:1;">1</span>
+      <span style="font-size:11px;color:#6E716F;">casse</span>
+    </div>
+  </div>
+</div>
+
+<!-- 14. BOTTOM NAV -->
+<div class="section">
+  <p class="section-title">14 · Bottom Navigation</p>
+  <div style="max-width:380px;">
+    <div class="bottom-nav">
+      <div class="nav-tab">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#910048" stroke-width="1.8"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linejoin="round"/><path d="M9 21V12h6v9" stroke-linejoin="round"/></svg>
+        <span class="nav-tab-label" style="color:#E5E1E6;">Home</span>
+      </div>
+      <div class="nav-tab">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(189,187,190,0.4)" stroke-width="1.8"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" stroke-linejoin="round"/><path d="M12 3v18M3 8l9 5 9-5" stroke-linejoin="round"/></svg>
+        <span class="nav-tab-label" style="color:rgba(189,187,190,0.4);">Le mie Casse</span>
+      </div>
+      <div class="nav-tab">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(189,187,190,0.4)" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+        <span class="nav-tab-label" style="color:rgba(189,187,190,0.4);">Nuova Cassa</span>
+      </div>
+      <div class="nav-tab">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(189,187,190,0.4)" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linejoin="round"/></svg>
+        <span class="nav-tab-label" style="color:rgba(189,187,190,0.4);">Chat</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 15. AUTH -->
+<div class="section">
+  <p class="section-title">15 · Auth Screen</p>
+  <div style="background:#212721;border-radius:24px;padding:32px 28px;max-width:360px;display:flex;flex-direction:column;gap:20px;">
+    <div style="text-align:center;">
+      <div style="width:60px;height:60px;background:#910048;border-radius:18px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:28px;">&#127863;</div>
+      <p style="font-size:22px;font-weight:800;color:#E5E1E6;">Siply GDA</p>
+      <p style="font-size:13px;color:rgba(189,187,190,0.5);margin-top:4px;">Condividi sorsi senza rimorsi</p>
+    </div>
+    <div style="background:rgba(255,255,255,0.07);border-radius:14px;padding:4px;display:flex;gap:4px;">
+      <button style="flex:1;padding:10px;border-radius:11px;background:#910048;color:#fff;border:none;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Accedi</button>
+      <button style="flex:1;padding:10px;border-radius:11px;background:none;color:rgba(189,187,190,0.6);border:none;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Registrati</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div><label style="font-size:12px;font-weight:600;color:rgba(189,187,190,0.6);display:block;margin-bottom:6px;">Email</label><input class="input input-dark" type="email" placeholder="marco@cantina.it" style="width:100%;" /></div>
+      <div><label style="font-size:12px;font-weight:600;color:rgba(189,187,190,0.6);display:block;margin-bottom:6px;">Password</label><input class="input input-dark" type="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" style="width:100%;" /></div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:16px;border-radius:14px;font-size:15px;">Accedi &rarr;</button>
+  </div>
+</div>
+
+<!-- 16. FILTER PANEL -->
+<div class="section">
+  <p class="section-title">16 · Filter Panel Elements</p>
+  <div style="background:#fff;border-radius:20px;padding:20px 22px;max-width:300px;display:flex;flex-direction:column;gap:16px;">
+    <div>
+      <p style="font-size:12px;font-weight:700;color:#212721;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Denominazione</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button style="padding:6px 14px;border-radius:999px;background:#910048;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">DOCG</button>
+        <button style="padding:6px 14px;border-radius:999px;background:rgba(33,39,33,0.07);color:#212721;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">DOC</button>
+        <button style="padding:6px 14px;border-radius:999px;background:rgba(33,39,33,0.07);color:#212721;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">IGT</button>
+        <button style="padding:6px 14px;border-radius:999px;background:rgba(33,39,33,0.07);color:#212721;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">VdT</button>
+      </div>
+    </div>
+    <div style="height:1px;background:rgba(33,39,33,0.07);"></div>
+    <div>
+      <p style="font-size:12px;font-weight:700;color:#212721;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Regione</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button style="padding:6px 14px;border-radius:999px;background:#910048;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Toscana</button>
+        <button style="padding:6px 14px;border-radius:999px;background:rgba(33,39,33,0.07);color:#212721;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Piemonte</button>
+        <button style="padding:6px 14px;border-radius:999px;background:rgba(33,39,33,0.07);color:#212721;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Veneto</button>
+      </div>
+    </div>
+    <div style="height:1px;background:rgba(33,39,33,0.07);"></div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <p style="font-size:12px;font-weight:700;color:#212721;text-transform:uppercase;letter-spacing:0.06em;">Prezzo</p>
+        <span style="font-size:12px;font-weight:600;color:#910048;">&#8364;10 &ndash; &#8364;80</span>
+      </div>
+      <div style="height:4px;background:rgba(33,39,33,0.1);border-radius:2px;position:relative;">
+        <div style="position:absolute;left:5%;right:40%;height:100%;background:#910048;border-radius:2px;"></div>
+        <div style="position:absolute;left:5%;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:#910048;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+        <div style="position:absolute;right:40%;top:50%;transform:translate(50%,-50%);width:14px;height:14px;border-radius:50%;background:#910048;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+      </div>
+    </div>
+    <div style="height:1px;background:rgba(33,39,33,0.07);"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <p style="font-size:13px;font-weight:600;color:#212721;">&#127807; Solo biologico / naturale</p>
+        <p style="font-size:11px;color:#6E716F;">Certificati bio, biodinamici, naturali</p>
+      </div>
+      <div style="width:44px;height:26px;border-radius:13px;background:#910048;position:relative;cursor:pointer;">
+        <div style="position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;"></div>
+      </div>
+    </div>
+    <button style="background:none;border:1px solid rgba(33,39,33,0.15);border-radius:12px;padding:10px;font-family:inherit;font-size:13px;font-weight:600;color:#6E716F;cursor:pointer;width:100%;">Rimuovi filtri</button>
+  </div>
+</div>
+
+<!-- 17. CELEBRATION SCREEN -->
+<div class="section">
+  <p class="section-title">17 · Sent Celebration Screen</p>
+  <div style="background:#fff;border-radius:24px;padding:48px 32px;max-width:320px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
+    <div style="font-size:64px;line-height:1;">&#127946;</div>
+    <h2 style="font-size:26px;font-weight:800;color:#212721;line-height:1.2;">Cassa inviata!<br/>Cin cin &#127881;</h2>
+    <p style="font-size:14px;color:#6E716F;line-height:1.6;">La tua cassa &egrave; in revisione. Il team Siply ti contatter&agrave; via chat entro 48 ore lavorative.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;margin-top:8px;">
+      <button class="btn btn-primary" style="width:100%;padding:16px;border-radius:14px;font-size:15px;">Vai alle mie Casse</button>
+      <button class="btn btn-ghost" style="width:100%;padding:14px;border-radius:14px;font-size:14px;">Crea un'altra Cassa</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

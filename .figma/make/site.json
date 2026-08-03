@@ -1,0 +1,11 @@
+{
+  "title": "Siply — Design",
+  "description": "Discover and share premium wines through a community-driven platform that simplifies wine appreciation, making it accessible for everyone.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

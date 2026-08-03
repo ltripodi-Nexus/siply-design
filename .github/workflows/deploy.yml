@@ -1,0 +1,54 @@
+name: Pubblica su GitHub Pages
+
+# Ogni push su main ricostruisce e ripubblica il sito. "workflow_dispatch"
+# lascia anche il bottone per rilanciarlo a mano dalla scheda Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Se arrivano due push ravvicinati, pubblica solo l'ultimo.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Il sito non sta alla radice del dominio ma in /<nome-repo>/: senza
+      # questo, CSS, font e immagini verrebbero cercati un livello troppo su.
+      # Il nome lo prende dalla repo, così vale anche se la si rinomina.
+      - run: pnpm build --base=/${{ github.event.repository.name }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

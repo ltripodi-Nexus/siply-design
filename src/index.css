@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'Formiga';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/Formiga-Light.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Formiga';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/Formiga-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Formiga';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/Formiga-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Formiga';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/Formiga-Semibold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Formiga';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/Formiga-Extrabold.woff2') format('woff2');
+}
+
+/* Il reset sta in @layer base: fuori dai layer vincerebbe sulle utility di
+   Tailwind (regola della cascata), e `* { margin: 0 }` annullerebbe mx-auto. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Formiga', sans-serif;
+    scrollbar-width: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  html, body, #root {
+    height: 100%;
+    background-color: #E5E1E6;
+  }
+
+  input, textarea, select, button {
+    font-family: 'Formiga', sans-serif;
+  }
+}
+
+/* Le transizioni fra schermate infilano dei wrapper animati fra il contenitore
+   scrollabile e la schermata. Le altezze in percentuale non attraversano quei
+   wrapper (una % si risolve solo contro un genitore di altezza definita), quindi
+   il riempimento verticale passa da flex: ogni anello della catena si allunga e
+   allunga il proprio figlio. Senza, in una chat corta la barra di scrittura
+   resterebbe a mezz'aria invece che in fondo.
+
+   `min-height` esplicita e `flex-shrink: 0` servono da quando c'è il footer:
+   in una colonna flex il footer è alto più dello schermo, lo spazio libero
+   diventa negativo e la schermata verrebbe schiacciata a pochi pixel.
+   Le sottrazioni corrispondono all'ingombro della nav (80px in basso su
+   mobile, 60px in alto da tablet), cioè al padding di .app-content. */
+@layer components {
+  .siply-page {
+    flex: 1 0 auto;
+    min-height: calc(100vh - 80px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .siply-page > * {
+    flex: 1;
+  }
+
+  .siply-footer {
+    flex-shrink: 0;
+  }
+
+  /* Etichetta spiegabile (components/Spiega.tsx). Sta qui e non in un <style>
+     dentro al componente perché di Spiega ce ne sono decine per schermata:
+     inline sarebbero decine di copie della stessa regola. */
+  .siply-spiega {
+    cursor: help;
+  }
+
+  /* Centratura dell'icona sull'altezza delle lettere.
+     Centrarla sulla line-height la lascia bassa: la line-box comprende lo
+     spazio dei discendenti (le code di g, p, q), che le etichette in maiuscolo
+     non usano. Si parte quindi da `vertical-align: middle`, che aggancia il
+     centro dell'icona a baseline + metà x-height, e si risale fino al centro
+     dell'altezza delle maiuscole.
+     Metriche misurate su Formiga (uguali a ogni peso): maiuscole 0.770em,
+     x-height 0.580em → il centro va alzato di (0.770 − 0.580) / 2 = 0.095em.
+     Un margine su una scatola inline la sposta di metà del suo valore, da cui
+     il doppio: 0.19em. Tutto in em, così vale a qualunque corpo del testo. */
+  .siply-spiega-ico {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+    /* la line-height del bottone aggiungerebbe spazio intorno al disegno e
+       falserebbe il centro: la si azzera e l'altezza la detta l'svg */
+    line-height: 0;
+    margin-left: 4px;
+    margin-top: -0.19em;
+    background: none;
+    border: none;
+    padding: 0;
+    /* Stesso colore dell'etichetta, senza sbiadirla oltre: su fondo scuro le
+       etichette sono già in grigio velato e un'icona più chiara sparirebbe.
+       Il disegno è a filo sottile, quindi pesa comunque meno del testo. */
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .siply-spiega-ico svg { display: block; }
+
+  /* Col dito un'icona da 11px non si prende: l'area sensibile si allarga oltre
+     il disegno, senza spostare di un pixel l'etichetta che le sta accanto. */
+  .siply-spiega-ico::after {
+    content: '';
+    position: absolute;
+    inset: -11px;
+  }
+
+  @media (hover: hover) {
+    .siply-spiega-ico::after { inset: -4px; }
+  }
+
+  @media (min-width: 768px) {
+    .siply-page {
+      min-height: calc(100vh - 60px);
+    }
+  }
+}
