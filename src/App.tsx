@@ -48,10 +48,11 @@ export interface Cassa {
   note?: string
   // Dati economici inseriti nel wizard, per id vino. Stanno qui e non nel wizard
   // così una bozza ripresa ritrova i prezzi già battuti.
-  // Quanto incassa il produttore non si scrive: è il prezzo scontato meno la
-  // commissione Siply (vedi src/economia.ts).
   prezziScontati?: Record<string, string>
   costiUnitari?: Record<string, string>
+  /** Prezzo a cui il produttore vende la bottiglia a Siply: lo chiede lui.
+   *  Quello che gli resta è questo meno la commissione (vedi src/economia.ts). */
+  costiScontati?: Record<string, string>
 }
 
 /** `bozza` = creazione mai finalizzata, modificabile e non ancora vista da Siply. */

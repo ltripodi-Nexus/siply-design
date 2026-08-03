@@ -47,6 +47,8 @@ export const DEMO_CASSA = {
   prezziScontati: { '1': '36', '2': '49', '3': '20' } as Record<string, string>,
   /** costo di produzione, € / bottiglia */
   costiUnitari: { '1': '17', '2': '24', '3': '9' } as Record<string, string>,
+  /** prezzo a cui il produttore vende a Siply, € / bottiglia */
+  costiScontati: { '1': '26', '2': '35', '3': '14' } as Record<string, string>,
   nome: 'Selezione Toscana & Piemonte 2025',
   note: "Selezione pensata per il mercato nordeuropeo. Disponibilità confermata fino a dicembre, possibilità di rifornimento entro 3 settimane.",
   locationSpedizione: 'Via delle Cantine 12, Montalcino (SI) — Toscana',
