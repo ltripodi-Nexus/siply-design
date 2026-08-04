@@ -41,6 +41,13 @@ export interface Proposta {
   stato: 'attesa' | 'accettata' | 'rifiutata'
 }
 
+/** Cosa si può agganciare a un messaggio: le casse e le bottiglie come nella
+ *  chat del produttore, e in più una proposta già fatta — serve a richiamarla
+ *  scrivendo, invece di descriverla a parole. */
+export type AllegatoAdmin =
+  | Allegato
+  | { tipo: 'proposta'; id: string; proposta: Proposta }
+
 export interface Messaggio {
   id: string
   da: 'siply' | 'produttore'
@@ -50,8 +57,8 @@ export interface Messaggio {
   propostaId?: string
   /** il messaggio è il documento emesso all'approvazione */
   documento?: boolean
-  /** casse o bottiglie della richiesta agganciate al messaggio */
-  allegati?: Allegato[]
+  /** casse, bottiglie o proposte agganciate al messaggio */
+  allegati?: AllegatoAdmin[]
 }
 
 export interface Documento {
@@ -96,7 +103,7 @@ export function useAdmin() {
     }))
 
   /** Scrive un messaggio dal lato Siply e finge una risposta del produttore. */
-  const invia = useCallback((richiestaId: string, testo: string, allegati?: Allegato[]) => {
+  const invia = useCallback((richiestaId: string, testo: string, allegati?: AllegatoAdmin[]) => {
     aggiungi(richiestaId, { da: 'siply', testo, allegati: allegati?.length ? allegati : undefined })
     window.setTimeout(() => {
       aggiungi(richiestaId, {

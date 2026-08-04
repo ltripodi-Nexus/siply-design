@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { C, alpha } from '../colors'
 import { COMMISSIONE_PCT, QUOTA_PCT, eur, num } from '../economia'
 import * as M from '../motion'
@@ -8,16 +7,18 @@ import * as Icon from '../components/Icons'
 import { daCatalogo, produttore, type Richiesta } from './dati'
 import { economiaCassa, vociCassa } from './statistiche'
 
-/* Il riassunto della richiesta, in cima a ogni conversazione: chi ha scritto,
-   cosa ha messo nelle casse e quanto vale, prezzo per prezzo. È il pannello su
-   cui si decide, quindi mostra i numeri aggiornati — se una proposta viene
-   accettata, qui si legge subito il prezzo nuovo. */
+/* Il riassunto della richiesta: chi ha scritto, cosa ha messo nelle casse e
+   quanto vale, prezzo per prezzo. È il pannello su cui si decide, quindi mostra
+   i numeri aggiornati — se una proposta viene applicata, qui si legge subito il
+   prezzo nuovo.
 
-export default function Riepilogo({ richiesta: r }: { richiesta: Richiesta }) {
-  const [aperto, setAperto] = useState(true)
-  const p = produttore(r.produttoreId)
+   Sta in un foglio che si apre e non più dentro il flusso della chat: là era
+   alto quanto lo schermo e restava tagliato dal bordo della lista dei messaggi,
+   su telefono come su desktop. In cima alla conversazione ne resta una barra
+   con i numeri che si guardano per primi. */
 
-  const bottiglie = r.casse.reduce((s, c) => s + c.quantita, 0)
+/** I totali della richiesta, sommati una volta sola. */
+function totali(r: Richiesta) {
   const tot = r.casse.reduce(
     (acc, c) => {
       const e = economiaCassa(c)
@@ -31,30 +32,93 @@ export default function Riepilogo({ richiesta: r }: { richiesta: Richiesta }) {
     },
     { listino: 0, scontato: 0, acquisto: 0, incasso: 0, quotaSiply: 0 },
   )
-  const nuovi = new Set(
-    r.casse.flatMap(c => vociCassa(c).filter(v => !daCatalogo(v.bottiglia)).map(v => v.bottiglia.id)),
-  ).size
+  return {
+    ...tot,
+    bottiglie: r.casse.reduce((s, c) => s + c.quantita, 0),
+    nuovi: new Set(
+      r.casse.flatMap(c => vociCassa(c).filter(v => !daCatalogo(v.bottiglia)).map(v => v.bottiglia.id)),
+    ).size,
+  }
+}
+
+/**
+ * La barra in cima alla conversazione: i numeri che servono a colpo d'occhio e
+ * la via per aprire tutto il resto. Non scorre coi messaggi, così resta
+ * raggiungibile anche in fondo a una chat lunga.
+ */
+export default function BarraRiepilogo({ richiesta: r, onApri }: { richiesta: Richiesta; onApri: () => void }) {
+  const t = totali(r)
+  return (
+    <M.CardButton
+      onClick={onApri}
+      style={{
+        width: '100%', textAlign: 'left', cursor: 'pointer',
+        backgroundColor: C.white, border: 'none', borderRadius: '16px',
+        padding: '11px 13px', boxShadow: '0 2px 10px rgba(0,0,0,0.10)',
+        display: 'flex', alignItems: 'center', gap: '11px',
+      }}
+    >
+      <div style={{ width: '34px', height: '34px', borderRadius: '11px', backgroundColor: alpha(C.dark, 0.06), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon.Appunti size={17} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ color: alpha(C.dark, 0.45), fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+          Riepilogo della richiesta
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '1px 9px', marginTop: '1px' }}>
+          <span style={{ color: C.dark, fontSize: '13px', fontWeight: 700 }}>
+            {r.casse.length} cass{r.casse.length === 1 ? 'a' : 'e'} · {t.bottiglie} bt
+          </span>
+          <span style={{ color: C.magenta, fontSize: '13px', fontWeight: 800 }}>€{eur(t.scontato)}</span>
+          <span style={{ color: C.gray, fontSize: '11.5px' }}>al produttore €{eur(t.incasso)}</span>
+        </div>
+      </div>
+      {t.nuovi > 0 && (
+        <span
+          title={`${t.nuovi} vini non sono nel nostro catalogo`}
+          style={{ flexShrink: 0, fontSize: '10px', fontWeight: 700, color: C.olive, backgroundColor: alpha(C.ocra, 0.25), padding: '3px 8px', borderRadius: '20px', whiteSpace: 'nowrap' }}
+        >
+          {t.nuovi} nuov{t.nuovi === 1 ? 'o' : 'i'}
+        </span>
+      )}
+      <span style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px', color: C.magenta, fontSize: '12.5px', fontWeight: 700 }}>
+        Apri
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.magenta} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </span>
+    </M.CardButton>
+  )
+}
+
+/** Il riepilogo per intero, in un foglio che scorre per conto suo. */
+export function RiepilogoPannello({ richiesta: r, onClose }: { richiesta: Richiesta; onClose: () => void }) {
+  const p = produttore(r.produttoreId)
+  const tot = totali(r)
+  const nuovi = tot.nuovi
+  const bottiglie = tot.bottiglie
 
   return (
-    <div style={{ backgroundColor: C.white, borderRadius: '18px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
-      <M.RowButton
-        onClick={() => setAperto(a => !a)}
-        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}
-      >
-        <Icon.Appunti size={17} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Riepilogo della richiesta
-          </p>
-          <p style={{ color: C.dark, fontSize: '13px', fontWeight: 700, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {r.casse.length} cass{r.casse.length === 1 ? 'a' : 'e'} · {bottiglie} bottiglie · €{eur(tot.scontato)} al GDA
-          </p>
+    <M.Overlay onClose={onClose} kind="sheet" z={440} veil={0.62} panelStyle={{
+      maxWidth: '680px', backgroundColor: C.bg, borderRadius: '24px 24px 0 0',
+      maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{ flexShrink: 0, padding: '12px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+          <div style={{ width: '36px', height: '4px', borderRadius: '2px', backgroundColor: alpha(C.dark, 0.15) }} />
         </div>
-        <M.Chevron open={aperto} color={alpha(C.dark, 0.3)} />
-      </M.RowButton>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ color: C.dark, fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>{r.nome}</h3>
+            <p style={{ color: C.gray, fontSize: '12px', marginTop: '3px' }}>
+              {r.casse.length} cass{r.casse.length === 1 ? 'a' : 'e'} · {bottiglie} bottiglie · €{eur(tot.scontato)} al GDA
+            </p>
+          </div>
+          <M.IconButton onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.gray, fontSize: '20px', lineHeight: 1, padding: '4px', flexShrink: 0 }}>✕</M.IconButton>
+        </div>
+      </div>
 
-      <M.Collapse open={aperto}>
-        <div style={{ padding: '0 16px 16px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 20px 32px' }}>
           {/* Chi ha scritto */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px', marginBottom: '12px' }}>
             <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: C.dark, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -119,9 +183,8 @@ export default function Riepilogo({ richiesta: r }: { richiesta: Richiesta }) {
               <p style={{ color: C.dark, fontSize: '12.5px', lineHeight: 1.5 }}>{r.nota}</p>
             </div>
           )}
-        </div>
-      </M.Collapse>
-    </div>
+      </div>
+    </M.Overlay>
   )
 }
 

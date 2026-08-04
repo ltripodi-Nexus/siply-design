@@ -8,9 +8,9 @@ import * as Icon from '../../components/Icons'
 import { allegabili, DettaglioModale, type Allegato } from '../ChatScreen'
 import { produttore, type Richiesta, type StatoRichiesta } from '../../admin/dati'
 import { vociCassa } from '../../admin/statistiche'
-import Riepilogo from '../../admin/Riepilogo'
+import BarraRiepilogo, { RiepilogoPannello } from '../../admin/Riepilogo'
 import DocumentoModale from '../../admin/Documento'
-import { NOME_CAMPO, type CampoPrezzo, type Documento, type Messaggio, type Proposta } from '../../admin/stato'
+import { NOME_CAMPO, type AllegatoAdmin, type CampoPrezzo, type Documento, type Messaggio, type Proposta } from '../../admin/stato'
 
 /* La conversazione lato Siply: la stessa chat del produttore, più gli
    strumenti per lavorarci sopra — il riepilogo della richiesta sempre a
@@ -35,7 +35,7 @@ interface Props {
   documenti: Record<string, Documento>
   apertaId: string | null
   onApri: (id: string | null) => void
-  onInvia: (richiestaId: string, testo: string, allegati?: Allegato[]) => void
+  onInvia: (richiestaId: string, testo: string, allegati?: AllegatoAdmin[]) => void
   onProponi: (p: Omit<Proposta, 'id' | 'stato'>) => void
   onDecidiProposta: (p: Proposta, accetta: boolean) => void
   onDecidi: (richiestaId: string, stato: StatoRichiesta, motivo?: string) => void
@@ -183,7 +183,7 @@ interface ThreadProps {
   proposte: Proposta[]
   documento?: Documento
   onIndietro: () => void
-  onInvia: (testo: string, allegati?: Allegato[]) => void
+  onInvia: (testo: string, allegati?: AllegatoAdmin[]) => void
   onProponi: (p: Omit<Proposta, 'id' | 'stato'>) => void
   onDecidiProposta: (p: Proposta, accetta: boolean) => void
   onDecidi: (stato: StatoRichiesta, motivo?: string) => void
@@ -191,12 +191,13 @@ interface ThreadProps {
 
 function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInvia, onProponi, onDecidiProposta, onDecidi }: ThreadProps) {
   const [testo, setTesto] = useState('')
-  const [allegati, setAllegati] = useState<Allegato[]>([])
+  const [allegati, setAllegati] = useState<AllegatoAdmin[]>([])
   const [pickerAperto, setPickerAperto] = useState(false)
   const [dettaglio, setDettaglio] = useState<Allegato | null>(null)
   const [propostaAperta, setPropostaAperta] = useState(false)
   const [rifiutoAperto, setRifiutoAperto] = useState(false)
   const [docAperto, setDocAperto] = useState(false)
+  const [riepilogoAperto, setRiepilogoAperto] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const pr = produttore(r.produttoreId)
@@ -215,7 +216,7 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
     setAllegati([])
   }
 
-  const toggleAllegato = (a: Allegato) =>
+  const toggleAllegato = (a: AllegatoAdmin) =>
     setAllegati(prev => prev.some(x => x.id === a.id) ? prev.filter(x => x.id !== a.id) : [...prev, a])
 
   return (
@@ -243,12 +244,17 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
             </p>
           </div>
         </div>
+
+        {/* La barra del riepilogo sta nell'intestazione, fuori dalla lista che
+            scorre: dentro veniva tagliata dal bordo e in fondo a una chat
+            lunga non la si raggiungeva più. */}
+        <div style={{ marginTop: '14px' }}>
+          <BarraRiepilogo richiesta={r} onApri={() => setRiepilogoAperto(true)} />
+        </div>
       </div>
 
-      {/* Corpo: riepilogo e messaggi scorrono insieme */}
+      {/* Corpo: i messaggi */}
       <div ref={scrollRef} className="siply-chat-messaggi" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <Riepilogo richiesta={r} />
-
         {documento && (
           <M.Button
             onClick={() => setDocAperto(true)}
@@ -316,9 +322,9 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
                   variants={M.V.pop} initial="initial" animate="animate" exit="exit"
                   style={{ display: 'flex', alignItems: 'center', gap: '7px', backgroundColor: C.white, border: `1.5px solid ${alpha(C.magenta, 0.3)}`, borderRadius: '10px', padding: '6px 8px 6px 10px' }}
                 >
-                  {a.tipo === 'cassa' ? <Icon.Cassa size={15} /> : <Icon.Bottiglia size={15} />}
+                  {a.tipo === 'cassa' ? <Icon.Cassa size={15} /> : a.tipo === 'proposta' ? <Icon.Trend size={15} /> : <Icon.Bottiglia size={15} />}
                   <span style={{ color: C.dark, fontSize: '12px', fontWeight: 600, maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {a.tipo === 'cassa' ? a.cassa.nome : a.bottiglia.nome}
+                    {a.tipo === 'cassa' ? a.cassa.nome : a.tipo === 'proposta' ? `Proposta · ${a.proposta.vinoNome}` : a.bottiglia.nome}
                   </span>
                   <M.IconButton
                     onClick={() => toggleAllegato(a)}
@@ -372,6 +378,7 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
         {pickerAperto && (
           <PickerAllegati
             richiesta={r}
+            proposte={proposte}
             selezionati={allegati}
             onToggle={toggleAllegato}
             onClose={() => setPickerAperto(false)}
@@ -402,6 +409,9 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
         {docAperto && documento && (
           <DocumentoModale richiesta={r} documento={documento} onClose={() => setDocAperto(false)} />
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {riepilogoAperto && <RiepilogoPannello richiesta={r} onClose={() => setRiepilogoAperto(false)} />}
       </AnimatePresence>
     </div>
   )
@@ -446,7 +456,9 @@ function Bolla({ m, proposta, documento, onDecidi, onApriDocumento, onApriAllega
             </svg>
           </M.CardButton>
         )}
-        {m.allegati?.map(a => (
+        {m.allegati?.map(a => a.tipo === 'proposta' ? (
+          <MiniProposta key={a.id} p={a.proposta} />
+        ) : (
           <M.CardButton
             key={a.id}
             onClick={() => onApriAllegato(a)}
@@ -466,6 +478,47 @@ function Bolla({ m, proposta, documento, onDecidi, onApriDocumento, onApriAllega
         <p style={{ color: C.gray, fontSize: '11px', padding: '0 4px' }}>{m.ora}</p>
       </div>
     </motion.div>
+  )
+}
+
+/** Una proposta richiamata dentro un messaggio: solo il fatto, senza i pulsanti
+ *  — quelli stanno sulla proposta vera, altrimenti si deciderebbe due volte
+ *  sulla stessa cosa. */
+export function MiniProposta({ p, compatta }: { p: Proposta; compatta?: boolean }) {
+  const giu = p.a < p.da
+  const colore = giu ? C.magenta : C.forest
+  const delta = p.da > 0 ? Math.abs(((p.a - p.da) / p.da) * 100) : 0
+  const stato = p.stato === 'accettata' ? 'applicata' : p.stato === 'rifiutata' ? 'lasciata cadere' : 'in attesa'
+
+  return (
+    <div style={{
+      width: compatta ? undefined : '100%',
+      backgroundColor: C.white,
+      border: `1.5px solid ${alpha(colore, 0.35)}`,
+      borderLeft: `4px solid ${colore}`,
+      borderRadius: '12px',
+      padding: compatta ? '6px 10px' : '10px 12px',
+      display: 'flex', alignItems: 'center', gap: '9px',
+    }}>
+      <Icon.Trend size={compatta ? 15 : 18} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {!compatta && (
+          <p style={{ color: alpha(C.dark, 0.4), fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Proposta · {stato}
+          </p>
+        )}
+        <p style={{ color: C.dark, fontSize: compatta ? '12px' : '13px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {p.vinoNome}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ color: alpha(C.dark, 0.4), fontSize: '11.5px', textDecoration: 'line-through' }}>€{eur(p.da)}</span>
+          <span style={{ color: colore, fontSize: '12.5px', fontWeight: 800 }}>€{eur(p.a)}</span>
+          <span style={{ color: colore, fontSize: '11px', fontWeight: 700 }}>
+            {giu ? '↓' : '↑'} {delta.toFixed(1).replace('.', ',')}%
+          </span>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -797,14 +850,20 @@ function SheetRifiuto({ onClose, onConferma }: { onClose: () => void; onConferma
 
 /* ── Scegliere cosa allegare ─────────────────────────────────────────────── */
 
-function PickerAllegati({ richiesta, selezionati, onToggle, onClose }: {
+function PickerAllegati({ richiesta, proposte, selezionati, onToggle, onClose }: {
   richiesta: Richiesta
-  selezionati: Allegato[]
-  onToggle: (a: Allegato) => void
+  proposte: Proposta[]
+  selezionati: AllegatoAdmin[]
+  onToggle: (a: AllegatoAdmin) => void
   onClose: () => void
 }) {
-  const voci = allegabili(richiesta)
-  const sel = (a: Allegato) => selezionati.some(x => x.id === a.id)
+  // Le proposte già fatte si allegano come casse e bottiglie: nel mezzo di una
+  // trattativa capita di doverne richiamare una scrivendo.
+  const voci: AllegatoAdmin[] = [
+    ...proposte.map(p => ({ tipo: 'proposta' as const, id: `p:${p.id}`, proposta: p })),
+    ...allegabili(richiesta),
+  ]
+  const sel = (a: AllegatoAdmin) => selezionati.some(x => x.id === a.id)
 
   return (
     <M.Overlay onClose={onClose} kind="sheet" z={400} veil={0.6} panelStyle={{
@@ -816,12 +875,21 @@ function PickerAllegati({ richiesta, selezionati, onToggle, onClose }: {
           <div style={{ width: '36px', height: '4px', borderRadius: '2px', backgroundColor: alpha(C.dark, 0.15) }} />
         </div>
         <h3 style={{ color: C.dark, fontSize: '18px', fontWeight: 800 }}>Allega al messaggio</h3>
-        <p style={{ color: C.gray, fontSize: '12px', marginTop: '3px' }}>Casse e bottiglie di {richiesta.nome}</p>
+        <p style={{ color: C.gray, fontSize: '12px', marginTop: '3px' }}>
+          {proposte.length > 0 ? 'Proposte, casse e bottiglie' : 'Casse e bottiglie'} di {richiesta.nome}
+        </p>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', backgroundColor: C.white }}>
-        {voci.map(a => (
+        {voci.map((a, i) => (
+          <div key={a.id}>
+            {/* Intestazione all'inizio di ogni gruppo: le proposte non sono
+                cose del GDA come le altre, e vanno distinte a colpo d'occhio. */}
+            {(i === 0 || (voci[i - 1].tipo === 'proposta') !== (a.tipo === 'proposta')) && (
+              <p style={{ padding: '12px 20px 6px', color: alpha(C.dark, 0.4), fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                {a.tipo === 'proposta' ? 'Proposte fatte' : 'Casse e bottiglie'}
+              </p>
+            )}
           <M.RowButton
-            key={a.id}
             onClick={() => onToggle(a)}
             style={{
               width: '100%', textAlign: 'left', cursor: 'pointer', padding: '12px 20px',
@@ -843,16 +911,21 @@ function PickerAllegati({ richiesta, selezionati, onToggle, onClose }: {
                 )}
               </AnimatePresence>
             </motion.div>
-            {a.tipo === 'cassa' ? <Icon.Cassa size={18} /> : <Icon.Bottiglia size={18} />}
+            {a.tipo === 'cassa' ? <Icon.Cassa size={18} /> : a.tipo === 'proposta' ? <Icon.Trend size={18} /> : <Icon.Bottiglia size={18} />}
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ color: C.dark, fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {a.tipo === 'cassa' ? a.cassa.nome : a.bottiglia.nome}
+                {a.tipo === 'cassa' ? a.cassa.nome : a.tipo === 'proposta' ? `Proposta su ${a.proposta.vinoNome}` : a.bottiglia.nome}
               </p>
               <p style={{ color: C.gray, fontSize: '11px', marginTop: '2px' }}>
-                {a.tipo === 'cassa' ? `${a.cassa.quantita} bt` : `${a.quantita} bt · in ${a.cassaNome}`}
+                {a.tipo === 'cassa'
+                  ? `${a.cassa.quantita} bt`
+                  : a.tipo === 'proposta'
+                    ? `€${eur(a.proposta.da)} → €${eur(a.proposta.a)} · ${NOME_CAMPO[a.proposta.campo]}`
+                    : `${a.quantita} bt · in ${a.cassaNome}`}
               </p>
             </div>
           </M.RowButton>
+          </div>
         ))}
       </div>
       <div style={{ flexShrink: 0, padding: '12px 20px 32px', borderTop: `1px solid ${alpha(C.dark, 0.07)}` }}>
