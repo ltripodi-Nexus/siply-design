@@ -13,6 +13,7 @@ import ChatScreen from './screens/ChatScreen'
 import BottomNav from './components/BottomNav'
 import DemoFab from './components/DemoFab'
 import Footer from './components/Footer'
+import AdminApp from './admin/AdminApp'
 
 export type Screen = 'auth' | 'dashboard' | 'gda' | 'gda-detail' | 'nuovo-gda' | 'chat'
 
@@ -154,6 +155,8 @@ const mockGda: Gda[] = [
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  /** L'interruttore del login decide quale delle due app si apre. */
+  const [admin, setAdmin] = useState(false)
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [gdaList, setGdaList] = useState<Gda[]>(mockGda)
   const [selectedGda, setSelectedGda] = useState<Gda | null>(null)
@@ -247,22 +250,20 @@ export default function App() {
     <AnimatePresence mode="wait" initial={false}>
       {!isLoggedIn ? (
         <M.Page key="auth">
-          <AuthScreen onLogin={() => setIsLoggedIn(true)} />
+          <AuthScreen onLogin={a => { setAdmin(a); setIsLoggedIn(true) }} />
           <DemoFab />
         </M.Page>
+      ) : admin ? (
+        <div key="admin">
+          <AdminApp onEsci={() => { setAdmin(false); setIsLoggedIn(false) }} />
+          <DemoFab />
+        </div>
       ) : (
         <div key="app" className="max-w-7xl mx-auto" style={{
           minHeight: '100vh', backgroundColor: C.bg,
           display: 'flex', flexDirection: 'column',
           position: 'relative',
         }}>
-          <style>{`
-            /* Niente padding in fondo: lo spazio per la nav fissa lo mette il
-               footer dentro di sé, altrimenti fra la fine del footer e la nav
-               resta scoperta una striscia chiara di sfondo. */
-            .app-content { display: flex; flex-direction: column; padding-bottom: 0; padding-top: 0; }
-            @media (min-width: 768px) { .app-content { padding-top: 60px; } }
-          `}</style>
           <div className="app-content" style={{ flex: 1, overflowY: 'auto' }}>
             <AnimatePresence mode="wait" initial={false}>
               {screen === 'dashboard' && <M.Page key="dashboard"><DashboardScreen user={mockUser} gdaList={gdaList} onNuovoGda={goNuovoGda} onNavigate={handleNav} /></M.Page>}
@@ -285,7 +286,7 @@ export default function App() {
                 comunque tutta l'altezza, quindi il footer si raggiunge scrollando. */}
             <Footer />
           </div>
-          <BottomNav current={screen} onChange={handleNav} />
+          <BottomNav current={screen} onChange={s => handleNav(s as Screen)} />
           <DemoFab />
         </div>
       )}

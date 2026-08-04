@@ -79,6 +79,24 @@
    Le sottrazioni corrispondono all'ingombro della nav (80px in basso su
    mobile, 60px in alto da tablet), cioè al padding di .app-content. */
 @layer components {
+  /* Il contenitore che scorre, sotto la nav. Sta qui e non in un <style> dentro
+     una schermata: lo usano sia l'app del produttore sia quella di Siply, e
+     quando stava in una sola delle due l'altra si ritrovava la prima riga
+     nascosta dietro la barra fissa.
+     Niente padding in fondo: lo spazio per la nav lo mette il footer dentro di
+     sé, altrimenti fra la fine del footer e la nav resta scoperta una striscia
+     chiara di sfondo. */
+  .app-content {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  @media (min-width: 768px) {
+    .app-content { padding-top: 60px; }
+  }
+
   .siply-page {
     flex: 1 0 auto;
     min-height: calc(100vh - 80px);

@@ -17,7 +17,7 @@ interface Props {
 /** Riferimento a una cassa o a una bottiglia del GDA di cui si sta parlando.
  *  Porta con sé i dati che servono a mostrarlo, così il messaggio resta leggibile
  *  anche se il GDA cambia dopo l'invio. */
-type Allegato =
+export type Allegato =
   | { tipo: 'cassa'; id: string; cassa: Cassa }
   | { tipo: 'bottiglia'; id: string; bottiglia: Bottiglia; quantita: number; cassaNome: string }
 
@@ -30,7 +30,7 @@ interface Message {
 }
 
 /** Tutto quello che si può allegare partendo da un GDA. */
-function allegabili(gda: Gda): Allegato[] {
+export function allegabili(gda: { casse: Cassa[] }): Allegato[] {
   const casse: Allegato[] = gda.casse.map(c => ({ tipo: 'cassa', id: `c:${c.id}`, cassa: c }))
   const bottiglie: Allegato[] = gda.casse.flatMap(c =>
     (c.bottiglie ?? [{ bottiglia: c.bottiglia, quantita: c.quantita }]).map(b => ({
@@ -727,7 +727,7 @@ function AllegatiPicker({ gda, selezionati, onToggle, onClose }: {
 }
 
 /* ── Modale di dettaglio di un allegato ──────────────────────────────────── */
-function DettaglioModale({ allegato: a, onClose }: { allegato: Allegato; onClose: () => void }) {
+export function DettaglioModale({ allegato: a, onClose }: { allegato: Allegato; onClose: () => void }) {
   const voci = a.tipo === 'cassa'
     ? (a.cassa.bottiglie ?? [{ bottiglia: a.cassa.bottiglia, quantita: a.cassa.quantita }])
     : []

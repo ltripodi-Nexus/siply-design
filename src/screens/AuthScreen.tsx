@@ -6,11 +6,13 @@ import { motion, AnimatePresence, useReducedMotion } from '../motion'
 import * as Icon from '../components/Icons'
 
 interface Props {
-  onLogin: () => void
+  onLogin: (admin: boolean) => void
 }
 
 export default function AuthScreen({ onLogin }: Props) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
+  /** Entrare come Siply invece che come cantina. Solo per le demo. */
+  const [admin, setAdmin] = useState(false)
   const [form, setForm] = useState({ email: '', password: '', nome: '', cantina: '', regione: '' })
   const [loading, setLoading] = useState(false)
 
@@ -27,7 +29,7 @@ export default function AuthScreen({ onLogin }: Props) {
   const handle = (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => { setLoading(false); onLogin() }, 900)
+    setTimeout(() => { setLoading(false); onLogin(admin) }, 900)
   }
 
   return (
@@ -72,7 +74,27 @@ export default function AuthScreen({ onLogin }: Props) {
           transition={{ ...M.T.surface, delay: 0.1 }}
           style={{ backgroundColor: C.bg, borderRadius: '28px 28px 0 0', padding: '32px 24px 48px' }}
         >
-          {/* Tabs — la pillola scura è una sola e scivola fra i due tab */}
+          {/* Da che parte si entra. Le due versioni si somigliano molto, quindi
+              la scelta sta prima del form e non fra le righe: si decide chi si
+              è, poi si accede. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: admin ? alpha(C.magenta, 0.07) : alpha(C.dark, 0.04), border: `1.5px solid ${admin ? alpha(C.magenta, 0.35) : 'transparent'}`, borderRadius: '16px', padding: '12px 14px', marginBottom: '16px', transition: 'background-color .2s, border-color .2s' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ color: C.dark, fontSize: '13px', fontWeight: 700 }}>
+                {admin ? 'Entri come Siply' : 'Entri come cantina'}
+              </p>
+              <p style={{ color: C.gray, fontSize: '11.5px', lineHeight: 1.4, marginTop: '1px' }}>
+                {admin
+                  ? 'Richieste da valutare, conversazioni e statistiche'
+                  : 'I tuoi GDA, le tue casse e la chat con noi'}
+              </p>
+            </div>
+            <Interruttore acceso={admin} onCambia={setAdmin} etichetta="Entra nell'area Siply" />
+          </div>
+
+          {/* Tabs — la pillola scura è una sola e scivola fra i due tab.
+              L'area Siply non si registra: gli account li facciamo noi, quindi
+              con l'interruttore acceso la scelta sparisce del tutto. */}
+          <M.Collapse open={!admin}>
           <div style={{ display: 'flex', backgroundColor: alpha(C.dark, 0.1), borderRadius: '14px', padding: '4px', marginBottom: '32px' }}>
             {(['login', 'register'] as const).map(m => (
               <M.Chip
@@ -95,6 +117,7 @@ export default function AuthScreen({ onLogin }: Props) {
               </M.Chip>
             ))}
           </div>
+          </M.Collapse>
 
           <form onSubmit={handle} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* I campi extra della registrazione si aprono in altezza invece di
@@ -125,13 +148,17 @@ export default function AuthScreen({ onLogin }: Props) {
                   variants={M.V.fade} initial="initial" animate="animate" exit="exit"
                   style={{ display: 'block' }}
                 >
-                  {loading ? 'Un momento...' : mode === 'login' ? 'Entra nella piattaforma' : 'Crea il tuo account'}
+                  {loading
+                    ? 'Un momento...'
+                    : admin
+                      ? "Entra nell'area Siply"
+                      : mode === 'login' ? 'Entra nella piattaforma' : 'Crea il tuo account'}
                 </motion.span>
               </AnimatePresence>
             </M.Button>
           </form>
 
-          <M.Collapse open={mode === 'login'}>
+          <M.Collapse open={mode === 'login' && !admin}>
             <p style={{ textAlign: 'center', fontSize: '13px', color: C.gray, marginTop: '24px' }}>
               Non hai ancora un account?{' '}
               <M.Button type="button" onClick={() => setMode('register')} style={{ display: 'inline-block', color: C.magenta, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -142,6 +169,37 @@ export default function AuthScreen({ onLogin }: Props) {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+/** Interruttore: la pallina scivola da una parte all'altra, così si capisce
+ *  che è una levetta e non due bottoni. Resta un `checkbox` per chi naviga da
+ *  tastiera o con lo screen reader. */
+function Interruttore({ acceso, onCambia, etichetta }: { acceso: boolean; onCambia: (v: boolean) => void; etichetta: string }) {
+  return (
+    <label style={{ flexShrink: 0, cursor: 'pointer', display: 'block' }}>
+      <input
+        type="checkbox"
+        checked={acceso}
+        onChange={e => onCambia(e.target.checked)}
+        aria-label={etichetta}
+        style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+      />
+      <motion.span
+        animate={{ backgroundColor: acceso ? C.magenta : alpha(C.dark, 0.18) }}
+        transition={M.T.micro}
+        style={{ display: 'flex', alignItems: 'center', width: '50px', height: '28px', borderRadius: '999px', padding: '3px' }}
+      >
+        <motion.span
+          layout
+          transition={M.T.press}
+          style={{
+            width: '22px', height: '22px', borderRadius: '50%', backgroundColor: C.white,
+            marginLeft: acceso ? 'auto' : 0, boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+          }}
+        />
+      </motion.span>
+    </label>
   )
 }
 

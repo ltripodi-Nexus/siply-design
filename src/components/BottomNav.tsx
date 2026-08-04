@@ -1,13 +1,24 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 import { C, alpha } from '../colors'
-import type { Screen } from '../App'
 import * as M from '../motion'
 import { motion } from '../motion'
 import * as Icon from './Icons'
 
+/** Una voce della barra. Le due versioni dell'app hanno tab diversi ma la
+ *  stessa barra: cambia l'elenco, non il componente. */
+export interface Tab {
+  id: string
+  label: string
+  icon: (p: { color: string }) => ReactElement
+  /** altre schermate che tengono acceso questo tab (es. il dettaglio di un GDA) */
+  anche?: string[]
+}
+
 interface Props {
-  current: Screen
-  onChange: (s: Screen) => void
+  current: string
+  onChange: (s: string) => void
+  /** se assente vale la barra del produttore */
+  tabs?: Tab[]
 }
 
 function HomeIcon({ color }: { color: string }) {
@@ -45,14 +56,33 @@ function ChatIcon({ color }: { color: string }) {
   )
 }
 
-const tabs = [
-  { id: 'dashboard' as Screen, label: 'Home', icon: HomeIcon },
-  { id: 'gda' as Screen, label: 'I miei GDA', icon: BoxIcon },
-  { id: 'nuovo-gda' as Screen, label: 'Nuovo GDA', icon: PlusIcon },
-  { id: 'chat' as Screen, label: 'Chat', icon: ChatIcon },
+function ListaIcon({ color }: { color: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round">
+      <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+    </svg>
+  )
+}
+
+function GraficoIcon({ color }: { color: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18" />
+      <path d="M6 21V11M11 21V5M16 21v-7M21 21v-4" />
+    </svg>
+  )
+}
+
+const TAB_PRODUTTORE: Tab[] = [
+  { id: 'dashboard', label: 'Home', icon: HomeIcon },
+  { id: 'gda', label: 'I miei GDA', icon: BoxIcon, anche: ['gda-detail'] },
+  { id: 'nuovo-gda', label: 'Nuovo GDA', icon: PlusIcon },
+  { id: 'chat', label: 'Chat', icon: ChatIcon },
 ]
 
-export default function BottomNav({ current, onChange }: Props) {
+export const ICONE = { HomeIcon, BoxIcon, PlusIcon, ChatIcon, GraficoIcon, ListaIcon }
+
+export default function BottomNav({ current, onChange, tabs = TAB_PRODUTTORE }: Props) {
   const navRef = useRef<HTMLElement>(null)
 
   /**
@@ -190,7 +220,7 @@ export default function BottomNav({ current, onChange }: Props) {
           <div className="siply-nav-tabs">
             {tabs.map(tab => {
               const Icon = tab.icon
-              const active = current === tab.id || (tab.id === 'gda' && current === 'gda-detail')
+              const active = current === tab.id || (tab.anche?.includes(current) ?? false)
               return (
                 <M.Chip
                   key={tab.id}
