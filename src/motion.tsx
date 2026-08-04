@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
+import { createContext, forwardRef, useContext, type ComponentProps, type CSSProperties, type ReactNode } from 'react'
 import { motion, AnimatePresence, useReducedMotion, type Transition, type Variants } from 'motion/react'
 
 /**
@@ -270,6 +270,20 @@ export function Collapse({ open, children, style }: { open: boolean; children: R
 }
 
 /**
+ * A che altezza si sta lavorando: 0 è la pagina, un numero è lo `z` del
+ * pannello che ci sta intorno.
+ *
+ * Serve a chi deve disegnarsi *sopra* a quello che spiega o commenta. Uno
+ * z-index scritto a mano nel componente vale finché quel componente sta nella
+ * pagina: aperto dentro un foglio finisce sotto al velo, ed è sparito. Così
+ * invece ogni pannello dichiara la propria altezza e chi sta dentro la legge.
+ */
+const Livello = createContext(0)
+
+/** Lo `z` del pannello in cui ci si trova, 0 se si è nella pagina. */
+export const useLivello = () => useContext(Livello)
+
+/**
  * Velo + pannello per modali e bottom sheet.
  * Il chiamante lo avvolge in `<AnimatePresence>` per avere anche l'uscita:
  *   <AnimatePresence>{aperto && <M.Overlay .../>}</AnimatePresence>
@@ -285,24 +299,26 @@ export function Overlay({ onClose, kind = 'sheet', z = 300, panelStyle, veil = 0
 }) {
   const sheet = kind === 'sheet'
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: z,
-      ...(sheet ? {} : { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }),
-    }}>
-      <motion.div
-        variants={V.backdrop} initial="initial" animate="animate" exit="exit"
-        onClick={onClose}
-        style={{ position: 'absolute', inset: 0, backgroundColor: `rgba(0,0,0,${veil})` }}
-      />
-      <motion.div
-        variants={sheet ? V.sheet : V.modal} initial="initial" animate="animate" exit="exit"
-        style={sheet
-          ? { position: 'absolute', bottom: 0, left: 0, right: 0, margin: '0 auto', ...panelStyle }
-          : { position: 'relative', ...panelStyle }}
-      >
-        {children}
-      </motion.div>
-    </div>
+    <Livello.Provider value={z}>
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: z,
+        ...(sheet ? {} : { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }),
+      }}>
+        <motion.div
+          variants={V.backdrop} initial="initial" animate="animate" exit="exit"
+          onClick={onClose}
+          style={{ position: 'absolute', inset: 0, backgroundColor: `rgba(0,0,0,${veil})` }}
+        />
+        <motion.div
+          variants={sheet ? V.sheet : V.modal} initial="initial" animate="animate" exit="exit"
+          style={sheet
+            ? { position: 'absolute', bottom: 0, left: 0, right: 0, margin: '0 auto', ...panelStyle }
+            : { position: 'relative', ...panelStyle }}
+        >
+          {children}
+        </motion.div>
+      </div>
+    </Livello.Provider>
   )
 }
 

@@ -16,6 +16,9 @@ import { motion, AnimatePresence } from '../motion'
  *  - dove c'è il mouse, passandoci sopra compare un tooltip
  *  - dove non c'è (touch), l'iconcina ⓘ si tocca e apre la stessa spiegazione
  *    in un pannello dal basso, dove c'è spazio per leggerla
+ *  - dentro a un foglio o a un modale, sempre a clic e sempre in un pannello:
+ *    un tooltip che scompare al primo scorrimento del pannello sotto, dentro
+ *    una superficie che si scorre, non si riesce a leggere
  *
  * Uso:
  *   <Spiega k="listino">A listino</Spiega>          // etichetta + ⓘ
@@ -349,6 +352,12 @@ export default function Spiega({ k, calcolo, style, children }: {
 }) {
   const v = VOCI[k]
   const touch = useTouch()
+  /** Se si è dentro a un pannello, la spiegazione va disegnata sopra al suo
+   *  velo: sennò è lì ma non la vede nessuno. */
+  const livello = M.useLivello()
+  const sopra = Math.max(400, livello + 60)
+  /** Dentro a un pannello e col dito: niente hover, si apre a clic. */
+  const aClic = touch || livello > 0
   const ref = useRef<HTMLSpanElement>(null)
   /** Bordi dell'etichetta a cui il tooltip si aggancia. */
   const [tip, setTip] = useState<{ left: number; su: number; giu: number } | null>(null)
@@ -438,7 +447,7 @@ export default function Spiega({ k, calcolo, style, children }: {
     e.preventDefault()
     e.stopPropagation()
     annulla()
-    if (touch) setSheet(true)
+    if (aClic) setSheet(true)
     else if (tip) setTip(null)
     else apriTip()
   }
@@ -448,9 +457,12 @@ export default function Spiega({ k, calcolo, style, children }: {
       <span
         ref={ref}
         className="siply-spiega"
-        style={style}
-        onMouseEnter={touch ? undefined : programma}
-        onMouseLeave={touch ? undefined : chiudi}
+        // dove si apre a clic, si prende tutta l'etichetta e non la sola
+        // iconcina: col dito è la differenza fra centrare e non centrare
+        onClick={aClic ? attiva : undefined}
+        style={aClic ? { cursor: 'pointer', ...style } : style}
+        onMouseEnter={aClic ? undefined : programma}
+        onMouseLeave={aClic ? undefined : chiudi}
       >
         {children}
         <M.IconButton
@@ -458,8 +470,8 @@ export default function Spiega({ k, calcolo, style, children }: {
           className="siply-spiega-ico"
           aria-label={`Cosa vuol dire "${v.titolo}"`}
           onClick={attiva}
-          onFocus={touch ? undefined : apriTip}
-          onBlur={touch ? undefined : chiudi}
+          onFocus={aClic ? undefined : apriTip}
+          onBlur={aClic ? undefined : chiudi}
         >
           <InfoIcon />
         </M.IconButton>
@@ -483,7 +495,7 @@ export default function Spiega({ k, calcolo, style, children }: {
                 // effect lo sistema prima che il browser disegni
                 top: `${pos ? pos.top : tip.giu + MARG}px`,
                 width: `${Math.min(LARG, window.innerWidth - 24)}px`,
-                zIndex: 400,
+                zIndex: sopra,
                 pointerEvents: 'none',
                 transformOrigin: pos?.sotto === false ? 'bottom center' : 'top center',
                 backgroundColor: C.dark,
@@ -504,17 +516,36 @@ export default function Spiega({ k, calcolo, style, children }: {
         <AnimatePresence>
           {sheet && (
             <M.Overlay
-              kind="sheet"
-              z={400}
+              // col dito sale dal basso, dove arriva il pollice; col mouse si
+              // apre al centro, che con un puntatore è dove si sta guardando
+              kind={touch ? 'sheet' : 'modal'}
+              z={sopra}
+              veil={livello > 0 ? 0.4 : 0.55}
               onClose={() => setSheet(false)}
               panelStyle={{
                 maxWidth: '520px',
+                width: touch ? undefined : '100%',
                 backgroundColor: C.white,
-                borderRadius: '24px 24px 0 0',
-                padding: '10px 22px 32px',
+                borderRadius: touch ? '24px 24px 0 0' : '22px',
+                padding: '10px 22px 22px',
+                maxHeight: '82vh',
+                overflowY: 'auto',
+                boxShadow: touch ? undefined : '0 24px 60px rgba(0,0,0,0.35)',
               }}
             >
-              <div style={{ width: '38px', height: '4px', borderRadius: '2px', backgroundColor: alpha(C.dark, 0.15), margin: '0 auto 16px' }} />
+              {touch
+                ? <div style={{ width: '38px', height: '4px', borderRadius: '2px', backgroundColor: alpha(C.dark, 0.15), margin: '0 auto 16px' }} />
+                : (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '0 -8px 2px 0' }}>
+                    <M.IconButton
+                      onClick={() => setSheet(false)}
+                      aria-label="Chiudi"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.gray, fontSize: '19px', lineHeight: 1, padding: '4px 8px' }}
+                    >
+                      ✕
+                    </M.IconButton>
+                  </div>
+                )}
               <Corpo v={v} calcolo={calcolo} chiaro />
               <M.Button
                 onClick={() => setSheet(false)}
