@@ -37,7 +37,7 @@ interface Props {
   onApri: (id: string | null) => void
   onInvia: (richiestaId: string, testo: string, allegati?: Allegato[]) => void
   onProponi: (p: Omit<Proposta, 'id' | 'stato'>) => void
-  onRispondiProposta: (p: Proposta, accetta: boolean) => void
+  onDecidiProposta: (p: Proposta, accetta: boolean) => void
   onDecidi: (richiestaId: string, stato: StatoRichiesta, motivo?: string) => void
 }
 
@@ -60,7 +60,7 @@ export default function ChatAdminScreen(p: Props) {
             onIndietro={() => p.onApri(null)}
             onInvia={(t, a) => p.onInvia(aperta.id, t, a)}
             onProponi={p.onProponi}
-            onRispondiProposta={p.onRispondiProposta}
+            onDecidiProposta={p.onDecidiProposta}
             onDecidi={(s, m) => p.onDecidi(aperta.id, s, m)}
           />
         </motion.div>
@@ -185,11 +185,11 @@ interface ThreadProps {
   onIndietro: () => void
   onInvia: (testo: string, allegati?: Allegato[]) => void
   onProponi: (p: Omit<Proposta, 'id' | 'stato'>) => void
-  onRispondiProposta: (p: Proposta, accetta: boolean) => void
+  onDecidiProposta: (p: Proposta, accetta: boolean) => void
   onDecidi: (stato: StatoRichiesta, motivo?: string) => void
 }
 
-function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInvia, onProponi, onRispondiProposta, onDecidi }: ThreadProps) {
+function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInvia, onProponi, onDecidiProposta, onDecidi }: ThreadProps) {
   const [testo, setTesto] = useState('')
   const [allegati, setAllegati] = useState<Allegato[]>([])
   const [pickerAperto, setPickerAperto] = useState(false)
@@ -278,7 +278,7 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
               m={m}
               proposta={m.propostaId ? proposte.find(p => p.id === m.propostaId) : undefined}
               documento={m.documento ? documento : undefined}
-              onRispondi={onRispondiProposta}
+              onDecidi={onDecidiProposta}
               onApriDocumento={() => setDocAperto(true)}
               onApriAllegato={setDettaglio}
             />
@@ -409,11 +409,11 @@ function Thread({ richiesta: r, messaggi, proposte, documento, onIndietro, onInv
 
 /* ── Bolle ───────────────────────────────────────────────────────────────── */
 
-function Bolla({ m, proposta, documento, onRispondi, onApriDocumento, onApriAllegato }: {
+function Bolla({ m, proposta, documento, onDecidi, onApriDocumento, onApriAllegato }: {
   m: Messaggio
   proposta?: Proposta
   documento?: Documento
-  onRispondi: (p: Proposta, accetta: boolean) => void
+  onDecidi: (p: Proposta, accetta: boolean) => void
   onApriDocumento: () => void
   onApriAllegato: (a: Allegato) => void
 }) {
@@ -429,7 +429,7 @@ function Bolla({ m, proposta, documento, onRispondi, onApriDocumento, onApriAlle
         </div>
       )}
       <div style={{ maxWidth: proposta || documento ? '88%' : '78%', display: 'flex', flexDirection: 'column', alignItems: mio ? 'flex-end' : 'flex-start', gap: '4px' }}>
-        {proposta && <CardProposta p={proposta} onRispondi={onRispondi} />}
+        {proposta && <CardProposta p={proposta} onDecidi={onDecidi} />}
         {documento && (
           <M.CardButton
             onClick={onApriDocumento}
@@ -469,12 +469,14 @@ function Bolla({ m, proposta, documento, onRispondi, onApriDocumento, onApriAlle
   )
 }
 
-/** La proposta di prezzo: da quanto a quanto, e di quanto cambia. */
-function CardProposta({ p, onRispondi }: { p: Proposta; onRispondi: (p: Proposta, accetta: boolean) => void }) {
+/** La proposta di prezzo: da quanto a quanto, e di quanto cambia.
+ *  A decidere siamo noi: confermandola il prezzo cambia nel GDA del produttore,
+ *  che se lo trova aggiornato e riceve la comunicazione in chat. */
+function CardProposta({ p, onDecidi }: { p: Proposta; onDecidi: (p: Proposta, accetta: boolean) => void }) {
   const delta = p.da > 0 ? ((p.a - p.da) / p.da) * 100 : 0
   const giu = p.a < p.da
   const colore = giu ? C.magenta : C.forest
-  const risposta = p.stato !== 'attesa'
+  const decisa = p.stato !== 'attesa'
 
   return (
     <div style={{ width: '100%', backgroundColor: C.white, border: `1.5px solid ${alpha(colore, 0.35)}`, borderRadius: '14px', overflow: 'hidden', boxShadow: '0 1px 5px rgba(0,0,0,0.08)' }}>
@@ -504,7 +506,7 @@ function CardProposta({ p, onRispondi }: { p: Proposta; onRispondi: (p: Proposta
         )}
       </div>
 
-      {risposta ? (
+      {decisa ? (
         <div style={{
           padding: '9px 14px',
           backgroundColor: p.stato === 'accettata' ? alpha(C.green, 0.16) : alpha(C.dark, 0.05),
@@ -515,26 +517,26 @@ function CardProposta({ p, onRispondi }: { p: Proposta; onRispondi: (p: Proposta
             ? <Icon.Check size={16} blob={null} color={C.forest} />
             : <Icon.Croce size={16} blob={null} color={C.gray} />}
           <p style={{ color: p.stato === 'accettata' ? C.forest : C.gray, fontSize: '12px', fontWeight: 700 }}>
-            {p.stato === 'accettata' ? 'Accettata — il prezzo è aggiornato nel riepilogo' : 'Rifiutata — resta il prezzo di prima'}
+            {p.stato === 'accettata' ? 'Applicata — il produttore ha il prezzo nuovo' : 'Lasciata cadere — resta il prezzo di prima'}
           </p>
         </div>
       ) : (
         <div style={{ padding: '9px 12px', backgroundColor: alpha(C.dark, 0.04), borderTop: `1px solid ${alpha(C.dark, 0.06)}` }}>
           <p style={{ color: alpha(C.dark, 0.4), fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '7px' }}>
-            Risposta del produttore
+            Decidi tu — la modifica si applica al produttore
           </p>
           <div style={{ display: 'flex', gap: '8px' }}>
             <M.Button
-              onClick={() => onRispondi(p, true)}
+              onClick={() => onDecidi(p, true)}
               style={{ flex: 1, backgroundColor: STATUS.approved.solid, color: C.white, border: 'none', borderRadius: '10px', padding: '9px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
             >
-              Accetta
+              Accetta e applica
             </M.Button>
             <M.Button
-              onClick={() => onRispondi(p, false)}
+              onClick={() => onDecidi(p, false)}
               style={{ flex: 1, backgroundColor: 'transparent', color: C.gray, border: `1.5px solid ${alpha(C.dark, 0.15)}`, borderRadius: '10px', padding: '9px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
             >
-              Rifiuta
+              Lascia perdere
             </M.Button>
           </div>
         </div>
@@ -590,7 +592,7 @@ function SheetProposta({ richiesta: r, onClose, onInvia }: {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
             <h3 style={{ color: C.dark, fontSize: '18px', fontWeight: 800, lineHeight: 1.2 }}>Proponi un prezzo</h3>
-            <p style={{ color: C.gray, fontSize: '12px', marginTop: '3px' }}>Il produttore riceve la proposta in chat e risponde.</p>
+            <p style={{ color: C.gray, fontSize: '12px', marginTop: '3px' }}>Finisce in chat come proposta. La confermi tu da lì: il prezzo cambia nel GDA del produttore.</p>
           </div>
           <M.IconButton onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.gray, fontSize: '20px', lineHeight: 1, padding: '4px' }}>✕</M.IconButton>
         </div>

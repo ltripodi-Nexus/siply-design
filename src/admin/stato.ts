@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { eur } from '../economia'
 import type { Allegato } from '../screens/ChatScreen'
 import { CONVERSAZIONI, RICHIESTE, type Richiesta, type StatoRichiesta } from './dati'
 
@@ -18,6 +19,13 @@ export type CampoPrezzo = 'gda' | 'siply'
 export const NOME_CAMPO: Record<CampoPrezzo, string> = {
   gda: 'Prezzo scontato GDA',
   siply: 'Prezzo acquisto Siply',
+}
+
+/** Come si dice dentro una frase: "GDA" e "Siply" restano maiuscoli, quindi
+ *  non basta un `toLowerCase()` sul nome del campo. */
+const NOME_IN_FRASE: Record<CampoPrezzo, string> = {
+  gda: 'il prezzo scontato GDA',
+  siply: 'il prezzo di acquisto Siply',
 }
 
 export interface Proposta {
@@ -105,11 +113,14 @@ export function useAdmin() {
   }, [])
 
   /**
-   * Il produttore risponde alla proposta. Accettandola il prezzo cambia
-   * davvero dentro la richiesta: da quel momento il riepilogo, i totali e le
-   * stime raccontano il prezzo nuovo, che è il punto di tutta la trattativa.
+   * Siply decide sulla proposta: la conferma o la lascia cadere. La decisione
+   * è solo nostra — il produttore non vota, riceve.
+   *
+   * Confermandola il prezzo cambia davvero dentro la richiesta: da quel
+   * momento il riepilogo, i totali e le stime raccontano il prezzo nuovo, che
+   * è il punto di tutta la trattativa.
    */
-  const rispondiProposta = useCallback((p: Proposta, accetta: boolean) => {
+  const decidiProposta = useCallback((p: Proposta, accetta: boolean) => {
     setProposte(prev => prev.map(x => x.id === p.id ? { ...x, stato: accetta ? 'accettata' : 'rifiutata' } : x))
     if (accetta) {
       setRichieste(rs => rs.map(r => r.id !== p.richiestaId ? r : {
@@ -121,11 +132,13 @@ export function useAdmin() {
         }),
       }))
     }
+    // Il messaggio parte da noi: è una comunicazione, non una trattativa
+    // chiusa a due voci.
     aggiungi(p.richiestaId, {
-      da: 'produttore',
+      da: 'siply',
       testo: accetta
-        ? `Va bene, accetto: ${NOME_CAMPO[p.campo].toLowerCase()} di ${p.vinoNome} a €${p.a.toFixed(2)}.`
-        : `Su ${p.vinoNome} non me la sento, preferirei restare a €${p.da.toFixed(2)}.`,
+        ? `Modifica applicata: ${NOME_IN_FRASE[p.campo]} di ${p.vinoNome} passa da €${eur(p.da)} a €${eur(p.a)}. Trovi il prezzo aggiornato nel tuo GDA.`
+        : `Abbiamo lasciato cadere la proposta su ${p.vinoNome}: resta €${eur(p.da)}.`,
     })
   }, [])
 
@@ -146,7 +159,7 @@ export function useAdmin() {
     }
   }, [])
 
-  return { richieste, messaggi, proposte, documenti, invia, proponi, rispondiProposta, decidi }
+  return { richieste, messaggi, proposte, documenti, invia, proponi, decidiProposta, decidi }
 }
 
 const RISPOSTE = [

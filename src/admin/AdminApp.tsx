@@ -72,7 +72,7 @@ export default function AdminApp({ onEsci }: { onEsci: () => void }) {
                 onApri={setApertaId}
                 onInvia={a.invia}
                 onProponi={a.proponi}
-                onRispondiProposta={a.rispondiProposta}
+                onDecidiProposta={a.decidiProposta}
                 onDecidi={a.decidi}
               />
             </M.Page>
