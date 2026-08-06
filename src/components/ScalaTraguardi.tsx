@@ -68,14 +68,32 @@ export function medieCasse(casse: Cassa[]): Medie {
   return { bottiglie: n, listino: listino / n, gda: gda / n, acquisto: acquisto / n, costo: costo / n }
 }
 
-/** I numeri di un traguardo, tutti derivati dalle medie e dallo sconto. */
+/**
+ * I numeri di un traguardo, tutti derivati dalle medie e dallo sconto.
+ *
+ * `sconto` e `base` non stanno in rapporto uno a uno con lo sconto in più, e
+ * questo confonde: mettere −5% su un prezzo già scontato del 15% non porta lo
+ * sconto sul listino al 20%, ma al 19%. Il motivo è che il 5% si toglie dal
+ * prezzo del gruppo — che è più basso del listino — quindi vale meno di cinque
+ * punti pieni. I due numeri escono entrambi da qui, e la riga li mostra
+ * insieme invece di lasciare il conto a chi guarda.
+ */
 export function contiTraguardo(t: Traguardo, m: Medie) {
   const prezzo = prezzoAlTraguardo(m.gda, t.sconto)
   const acquisto = prezzoAlTraguardo(m.acquisto, t.sconto)
+  /* Arrotondati qui e non a video: se il totale si arrotonda per eccesso e la
+     base per difetto, la somma scritta a schermo non torna e sembra un errore
+     di conto nostro. Questi tre numeri sono sempre coerenti fra loro. */
+  const sconto = Math.round(scontoTotale(m.listino, m.gda, t.sconto))
+  const base = Math.round(scontoTotale(m.listino, m.gda, 0))
   return {
     prezzo,
     acquisto,
-    sconto: scontoTotale(m.listino, m.gda, t.sconto),
+    sconto,
+    /** Lo sconto di partenza, senza il contributo di questo traguardo. */
+    base,
+    /** I punti di sconto che questo traguardo aggiunge davvero al listino. */
+    punti: sconto - base,
     valore: prezzo * t.bottiglie,
     incasso: acquisto > 0 ? alProduttore(acquisto * t.bottiglie) : null,
     netto: acquisto > 0 && m.costo > 0
@@ -169,13 +187,24 @@ export function RigaTraguardo({ indice, traguardo: t, medie: m, onBottiglie, onS
               <p style={ETICHETTA}>
                 <Spiega
                   k="scontoTotaleListino"
-                  calcolo={`€${eur(m.listino)} − €${eur(conti.prezzo)} ÷ €${eur(m.listino)} = ${Math.round(conti.sconto)}%`}
+                  calcolo={t.sconto > 0
+                    ? `€${eur(m.listino)} × ${100 - conti.base}% × ${100 - t.sconto}% = €${eur(conti.prezzo)}`
+                    : `€${eur(m.listino)} × ${100 - conti.base}% = €${eur(conti.prezzo)}`}
                 >
                   Sconto sul listino
                 </Spiega>
               </p>
-              <p style={{ color: C.forest, fontSize: '19px', fontWeight: 800, lineHeight: 1.2 }}>
-                −{Math.round(conti.sconto)}%
+              <p style={{ display: 'flex', alignItems: 'baseline', gap: '7px', color: C.forest, fontSize: '19px', fontWeight: 800, lineHeight: 1.2 }}>
+                −{conti.sconto}%
+                {/* Quanto ha aggiunto *questo* traguardo, in punti di listino.
+                    È il numero che manca per capire perché uno sconto in più
+                    del 5% non porta il totale di cinque punti: si applica al
+                    prezzo del gruppo, che è già sceso. */}
+                {conti.punti > 0 && (
+                  <span style={{ color: C.forest, fontSize: '12px', fontWeight: 700, backgroundColor: alpha(C.forest, 0.12), borderRadius: '20px', padding: '2px 8px' }}>
+                    +{conti.punti} punti
+                  </span>
+                )}
               </p>
             </div>
             <div style={{ textAlign: 'right', minWidth: 0 }}>
@@ -195,16 +224,35 @@ export function RigaTraguardo({ indice, traguardo: t, medie: m, onBottiglie, onS
             </div>
           </div>
 
-          {/* Quanto si scende, visto: la barra cresce di traguardo in traguardo
-              e la scala si legge di colpo, senza confrontare percentuali. */}
-          <div style={{ height: '6px', borderRadius: '3px', backgroundColor: alpha(C.dark, 0.08), marginTop: '10px', overflow: 'hidden' }}>
+          {/* Quanto si scende, visto. La barra è in due pezzi: quello chiaro è
+              lo sconto che c'era già, quello pieno è il tratto aggiunto da
+              questo traguardo. Il pezzo pieno si vede corto rispetto al numero
+              battuto sopra, ed è esattamente il punto da capire. */}
+          <div style={{ height: '7px', borderRadius: '4px', backgroundColor: alpha(C.dark, 0.08), marginTop: '10px', overflow: 'hidden', display: 'flex' }}>
             <motion.div
               initial={false}
-              animate={{ width: `${Math.min(100, Math.max(0, conti.sconto) * 2)}%` }}
+              animate={{ width: `${Math.min(100, Math.max(0, conti.base) * 2)}%` }}
               transition={M.T.press}
-              style={{ height: '100%', borderRadius: '3px', backgroundColor: C.forest }}
+              style={{ height: '100%', backgroundColor: alpha(C.forest, 0.32), flexShrink: 0 }}
+            />
+            <motion.div
+              initial={false}
+              animate={{ width: `${Math.min(100, Math.max(0, conti.punti) * 2)}%` }}
+              transition={M.T.press}
+              style={{ height: '100%', backgroundColor: C.forest, flexShrink: 0 }}
             />
           </div>
+
+          {/* La somma scritta per esteso: nessuno deve dedurla, e i tre numeri
+              tornano sempre perché sono arrotondati insieme in contiTraguardo. */}
+          {conti.punti > 0 && (
+            <p style={{ color: C.gray, fontSize: '11.5px', lineHeight: 1.5, marginTop: '7px' }}>
+              <strong style={{ color: alpha(C.forest, 0.85), fontWeight: 700 }}>−{conti.base}%</strong> di partenza
+              {' + '}
+              <strong style={{ color: C.forest, fontWeight: 700 }}>{conti.punti} punti</strong> da questo traguardo.
+              {' '}Il <strong style={{ color: C.dark, fontWeight: 700 }}>−{t.sconto}%</strong> si toglie dal prezzo del gruppo, non dal listino: quel prezzo è già sceso, quindi sul listino pesa meno di {t.sconto} punti.
+            </p>
+          )}
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: '11px' }}>
             <Voce
@@ -315,8 +363,14 @@ function StepperSconto({ valore, onCambia }: { valore: number; onCambia: (v: num
   }
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-      <span style={{ color: C.gray, fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      {/* Su cosa si applica sta scritto sotto l'etichetta e non dentro alla
+          spiegazione: è la domanda che viene guardando il numero, e la
+          risposta deve stare lì, non a un clic di distanza. */}
+      <span style={{ color: C.gray, fontSize: '12px', fontWeight: 600, lineHeight: 1.25 }}>
         <Spiega k="scontoInPiu">Sconto in più</Spiega>
+        <span style={{ display: 'block', color: alpha(C.dark, 0.4), fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '1px' }}>
+          sul prezzo del gruppo
+        </span>
       </span>
       <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${alpha(C.forest, 0.3)}`, borderRadius: '10px', overflow: 'hidden' }}>
         <M.IconButton onClick={() => cambia(-1)} disabled={valore <= 0} style={{ ...bottone, color: valore <= 0 ? alpha(C.dark, 0.25) : C.dark, cursor: valore <= 0 ? 'default' : 'pointer' }}>−</M.IconButton>
@@ -422,7 +476,7 @@ export function EsempioScala() {
                 €{eur(c.prezzo)}
               </span>
               <span style={{ flexShrink: 0, color: C.forest, fontSize: '11.5px', fontWeight: 700, backgroundColor: alpha(C.forest, 0.1), borderRadius: '20px', padding: '2px 8px' }}>
-                −{Math.round(c.sconto)}% sul listino
+                −{c.sconto}% sul listino
               </span>
               <span style={{ marginLeft: 'auto', color: C.gray, fontSize: '11.5px', whiteSpace: 'nowrap' }}>
                 incassi <strong style={{ color: C.dark, fontSize: '12.5px' }}>€{eur(c.incasso ?? 0)}</strong>
@@ -431,7 +485,7 @@ export function EsempioScala() {
           ))}
 
           <p style={{ color: C.olive, fontSize: '12.5px', lineHeight: 1.6, marginTop: '10px', backgroundColor: alpha(C.ocra, 0.14), borderRadius: '12px', padding: '11px 13px' }}>
-            All'ultimo traguardo la bottiglia scende da €{eur(primo.c.prezzo)} a €{eur(ultimo.c.prezzo)}: <strong>sconti il {Math.round(ultimo.c.sconto)}% invece del {Math.round(primo.c.sconto)}%</strong>, ma vendi {Math.round(ultimo.t.bottiglie / primo.t.bottiglie)} volte le bottiglie —
+            All'ultimo traguardo la bottiglia scende da €{eur(primo.c.prezzo)} a €{eur(ultimo.c.prezzo)}: <strong>sconti il {ultimo.c.sconto}% invece del {primo.c.sconto}%</strong>, ma vendi {Math.round(ultimo.t.bottiglie / primo.t.bottiglie)} volte le bottiglie —
             {' '}<strong>incassi {pct(volte)} volte di più</strong>, €{eur(ultimo.c.incasso ?? 0)} invece di €{eur(primo.c.incasso ?? 0)}. È questo che lo sconto compra.
           </p>
         </div>

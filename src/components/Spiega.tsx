@@ -162,15 +162,15 @@ const VOCI = {
   },
   scontoInPiu: {
     titolo: 'Sconto in più',
-    cosa: "Quanto togli ancora, oltre allo sconto GDA che hai già fatto, se il gruppo arriva a questo traguardo. È il premio che sblocca chi compra di più.",
-    formula: 'prezzo del primo traguardo × (100% − sconto in più)',
+    cosa: "Quanto togli ancora se il gruppo arriva a questo traguardo. Attenzione a dove si applica: si toglie dal prezzo del gruppo, non dal listino. Quel prezzo è già sceso, quindi un −5% qui non sposta di cinque punti lo sconto sul listino, ma di un po' meno: su un prezzo già scontato del 15%, per esempio, lo porta a 19% e non a 20%. Sotto al numero grande trovi scritto quanti punti aggiunge davvero.",
+    formula: 'prezzo del primo traguardo × quanto resta dopo lo sconto in più',
     nota: `Vale su tutti e due i prezzi: quello che paga il gruppo e quello che chiedi a Siply. Siply trattiene sempre e solo la sua commissione del ${COMMISSIONE_PCT}, quindi lo sconto lo fai tu — ed è tuo anche il vantaggio, cioè le bottiglie in più che vendi.`,
   },
   scontoTotaleListino: {
     titolo: 'Sconto totale sul listino',
-    cosa: "Di quanto scende il prezzo rispetto al listino arrivando a questo traguardo: è il numero che vede chi compra, e mette insieme lo sconto GDA di partenza e lo sconto in più del traguardo.",
-    formula: 'prezzo di listino − prezzo al traguardo ÷ prezzo di listino × 100',
-    nota: 'I prezzi sono le medie di tutte le bottiglie del GDA, contate una per una.',
+    cosa: "Di quanto è sceso il prezzo rispetto al listino arrivando a questo traguardo: è il numero che vede chi compra. Mette insieme due sconti, uno dopo l'altro — quello GDA di partenza e quello in più del traguardo — e per questo non è la loro somma: il secondo si calcola su un prezzo che il primo ha già abbassato.",
+    formula: 'prezzo di listino × quanto resta dopo lo sconto di partenza × quanto resta dopo lo sconto in più',
+    nota: "Dopo un −15% resta l'85%, dopo un altro −5% ne resta il 95%: 85 per 95 fa 81, cioè il 19% in meno del listino. I prezzi sono le medie di tutte le bottiglie del GDA, contate una per una.",
   },
   prezzoTraguardo: {
     titolo: 'Prezzo a bottiglia al traguardo',
