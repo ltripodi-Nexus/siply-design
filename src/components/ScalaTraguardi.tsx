@@ -412,6 +412,26 @@ function StepperSconto({ valore, onCambia }: { valore: number; onCambia: (v: num
 /** Moltiplicatore leggibile: "4" quando è tondo, "3,6" quando non lo è. */
 const volteTxt = (v: number) => (Math.abs(v - Math.round(v)) < 0.05 ? num(Math.round(v)) : pct(v))
 
+/* I toni su fondo scuro.
+   Il primo traguardo si scrive più quieto dell'ultimo — è l'ultimo il punto
+   dove si vuole arrivare, e la gerarchia serve — ma "più quieto" non vuol
+   dire smorzato fino a sparire: sotto a queste soglie il testo piccolo su
+   `C.dark` scende oltre 4,5:1 e non si legge più. Sono il pavimento, non un
+   suggerimento: per far risaltare l'ultimo traguardo si alza quello, non si
+   abbassa il primo. */
+const SCURO = {
+  /** titolo della scheda e didascalia sotto */
+  titolo: alpha(C.silver, 0.8),
+  didascalia: alpha(C.silver, 0.7),
+  /** riga del primo traguardo: leggibile, non in evidenza */
+  etichetta: alpha(C.silver, 0.75),
+  numero: C.silver,
+  unita: alpha(C.silver, 0.7),
+  /** elemento grafico: gli basta 3:1, ma sotto non si distingue dal binario */
+  barra: alpha(C.silver, 0.5),
+  testo: alpha(C.silver, 0.8),
+} as const
+
 export function ImpattoScala({ traguardi, medie: m }: { traguardi: Traguardo[]; medie: Medie }) {
   // Con un traguardo solo non c'è nessun "da … a …" da raccontare, e senza
   // prezzi scritti non ci sono numeri da confrontare.
@@ -439,13 +459,13 @@ export function ImpattoScala({ traguardi, medie: m }: { traguardi: Traguardo[]; 
       {/* Il tratto dell'icona è scuro di suo e su questo fondo sparirebbe:
           qui prende il colore dell'etichetta che accompagna. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '2px' }}>
-        <Icon.Trend size={16} color={alpha(C.silver, 0.55)} />
-        <p style={{ color: alpha(C.silver, 0.55), fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+        <Icon.Trend size={16} color={SCURO.titolo} />
+        <p style={{ color: SCURO.titolo, fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
           Cosa cambia con la scala
         </p>
       </div>
       {/* Cosa misurano le barre: senza, sono due lunghezze e basta. */}
-      <p style={{ color: alpha(C.silver, 0.38), fontSize: '10.5px', fontWeight: 600, marginBottom: '13px', paddingLeft: '23px' }}>
+      <p style={{ color: SCURO.didascalia, fontSize: '11px', fontWeight: 600, marginBottom: '13px', paddingLeft: '23px' }}>
         lunghezza delle barre: {etichettaSoldi}
       </p>
 
@@ -467,7 +487,7 @@ export function ImpattoScala({ traguardi, medie: m }: { traguardi: Traguardo[]; 
         quota={aUltimo / massimo}
       />
 
-      <p style={{ color: alpha(C.silver, 0.75), fontSize: '12px', lineHeight: 1.6, marginTop: '13px', paddingTop: '12px', borderTop: `1px solid ${alpha(C.white, 0.1)}` }}>
+      <p style={{ color: SCURO.testo, fontSize: '12px', lineHeight: 1.6, marginTop: '13px', paddingTop: '12px', borderTop: `1px solid ${alpha(C.white, 0.12)}` }}>
         {puntiInPiu > 0 ? (
           <>
             La bottiglia scende da €{eur(primo.prezzo)} a €{eur(ultimo.prezzo)}: sconti{' '}
@@ -506,30 +526,30 @@ function Confronto({ etichetta, bottiglie, prezzo, sconto, soldi, quota, forte }
   return (
     <div style={{ marginTop: forte ? '12px' : 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ color: forte ? alpha(C.silver, 0.8) : alpha(C.silver, 0.45), fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        <span style={{ color: forte ? C.bg : SCURO.etichetta, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           {etichetta}
         </span>
-        <span style={{ color: forte ? C.bg : alpha(C.silver, 0.7), fontSize: '13px', fontWeight: 800 }}>
+        <span style={{ color: forte ? C.bg : SCURO.numero, fontSize: '13px', fontWeight: 800 }}>
           {num(bottiglie)} bt
         </span>
-        <span style={{ marginLeft: 'auto', color: forte ? C.bg : alpha(C.silver, 0.7), fontSize: '13px', fontWeight: 800 }}>
+        <span style={{ marginLeft: 'auto', color: forte ? C.bg : SCURO.numero, fontSize: '13px', fontWeight: 800 }}>
           €{eur(prezzo)}
-          <span style={{ color: alpha(C.silver, 0.45), fontSize: '10px', fontWeight: 600 }}>/bt</span>
+          <span style={{ color: SCURO.unita, fontSize: '10px', fontWeight: 600 }}>/bt</span>
         </span>
-        <span style={{ color: C.bg, fontSize: '10.5px', fontWeight: 700, backgroundColor: alpha(C.green, 0.35), borderRadius: '20px', padding: '2px 7px' }}>
+        <span style={{ color: C.bg, fontSize: '10.5px', fontWeight: 700, backgroundColor: alpha(C.green, forte ? 0.45 : 0.35), borderRadius: '20px', padding: '2px 7px' }}>
           −{sconto}%
         </span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
-        <div style={{ flex: 1, minWidth: 0, height: '10px', borderRadius: '5px', backgroundColor: alpha(C.white, 0.07), overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, height: '10px', borderRadius: '5px', backgroundColor: alpha(C.white, 0.09), overflow: 'hidden' }}>
           <motion.div
             initial={false}
             animate={{ width: `${Math.min(100, Math.max(0, quota * 100))}%` }}
             transition={M.T.press}
-            style={{ height: '100%', borderRadius: '5px', backgroundColor: forte ? C.ocra : alpha(C.silver, 0.28) }}
+            style={{ height: '100%', borderRadius: '5px', backgroundColor: forte ? C.ocra : SCURO.barra }}
           />
         </div>
-        <span style={{ flexShrink: 0, color: forte ? C.ocra : alpha(C.silver, 0.7), fontSize: forte ? '16px' : '13px', fontWeight: 800, lineHeight: 1 }}>
+        <span style={{ flexShrink: 0, color: forte ? C.ocra : SCURO.numero, fontSize: forte ? '16px' : '13px', fontWeight: 800, lineHeight: 1 }}>
           €{eur(soldi)}
         </span>
       </div>
