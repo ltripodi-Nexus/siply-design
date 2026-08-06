@@ -53,8 +53,13 @@ export const DEMO_CASSA = {
   note: "Selezione pensata per il mercato nordeuropeo. Disponibilità confermata fino a dicembre, possibilità di rifornimento entro 3 settimane.",
   locationSpedizione: 'Via delle Cantine 12, Montalcino (SI) — Toscana',
   noteSpedizione: 'Le casse di Barolo partono dal deposito di Alba (CN). Ritiro solo dal lunedì al giovedì, 8:00–13:00.',
-  /** obiettivi di vendita sull'intero GDA, non sulla singola cassa */
-  obiettivi: [600, 1200, 2400],
+  /** la scala degli sconti sull'intero GDA, non sulla singola cassa:
+   *  bottiglie da raggiungere e sconto in più che si sblocca arrivandoci */
+  traguardi: [
+    { bottiglie: 600, sconto: 0 },
+    { bottiglie: 1200, sconto: 5 },
+    { bottiglie: 2400, sconto: 10 },
+  ],
 }
 
 /** File finto per il campo "Listino pubblico (PDF)". */

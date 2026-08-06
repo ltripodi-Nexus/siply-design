@@ -1,10 +1,10 @@
 import { C, alpha } from '../colors'
 import { cassaTotale, gdaBottiglie, gdaTotale, type Cassa, type Gda } from '../App'
-import { num } from '../economia'
 import * as M from '../motion'
 import { STATUS } from '../status'
 import { scrollToFooter } from '../components/Footer'
 import Spiega from '../components/Spiega'
+import { ScalaTraguardi } from '../components/ScalaTraguardi'
 import * as Icon from '../components/Icons'
 
 interface Props {
@@ -107,16 +107,25 @@ export default function GdaDetailScreen({ gda, onBack }: Props) {
             <InfoRow label="Data creazione" value={new Date(gda.dataCreazione).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })} />
             <InfoRow label="Casse nel GDA" value={`${gda.casse.length} cass${gda.casse.length === 1 ? 'a' : 'e'}`} />
             <InfoRow label="Numero bottiglie" value={`${bottiglie} bottigli${bottiglie === 1 ? 'a' : 'e'}`} />
-            <InfoRow label="Vini diversi" value={String(viniDiversi)} last={!gda.obiettivi?.length} />
-            {gda.obiettivi && gda.obiettivi.length > 0 && (
-              <InfoRow
-                label={gda.obiettivi.length === 1 ? 'Obiettivo di vendita' : 'Obiettivi di vendita'}
-                value={`${gda.obiettivi.map(num).join(' · ')} bottiglie`}
-                last
-              />
-            )}
+            <InfoRow label="Vini diversi" value={String(viniDiversi)} last />
           </div>
         </M.Item>
+
+        {/* La scala degli sconti dichiarata: le stesse righe che il produttore
+            ha visto mentre le decideva, così il patto si rilegge uguale. */}
+        {gda.traguardi && gda.traguardi.length > 0 && (
+          <M.Item style={{ backgroundColor: C.white, borderRadius: '16px', overflow: 'hidden', boxShadow: '0 1px 5px rgba(0,0,0,0.06)' }}>
+            <div style={{ padding: '12px 16px', backgroundColor: alpha(C.dark, 0.03), borderBottom: `1px solid ${alpha(C.dark, 0.06)}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon.Bersaglio size={16} />
+              <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                <Spiega k="traguardi">Traguardi e sconti</Spiega>
+              </p>
+            </div>
+            <div style={{ padding: '2px 16px 14px' }}>
+              <ScalaTraguardi traguardi={gda.traguardi} casse={gda.casse} />
+            </div>
+          </M.Item>
+        )}
 
         {/* Spedizione — dato del GDA, non della singola cassa */}
         {(gda.locationSpedizione || gda.noteSpedizione) && (

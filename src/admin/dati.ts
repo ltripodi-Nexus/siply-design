@@ -1,5 +1,6 @@
 import { WINES } from '../data/wines'
 import type { Bottiglia, Cassa } from '../App'
+import type { Traguardo } from '../traguardi'
 
 /* ──────────────────────────────────────────────────────────────────────────
    I dati del lato Siply.
@@ -103,7 +104,7 @@ export interface Richiesta {
   /** giorno in cui è arrivata a noi */
   dataInvio: string
   casse: Cassa[]
-  obiettivi: number[]
+  traguardi: Traguardo[]
   locationSpedizione: string
   /** nota del produttore al team */
   nota?: string
@@ -116,7 +117,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r1', nome: 'GDA Nordeuropa Autunno', produttoreId: 'pr1', stato: 'pending_approval',
     dataInvio: '2026-07-29',
-    obiettivi: [600, 1200, 2400],
+    traguardi: [{ bottiglie: 600, sconto: 0 }, { bottiglie: 1200, sconto: 5 }, { bottiglie: 2400, sconto: 10 }],
     locationSpedizione: 'Via delle Cantine 12, Montalcino (SI)',
     nota: 'Selezione pensata per il mercato nordeuropeo. Disponibilità confermata fino a dicembre.',
     casse: [
@@ -127,7 +128,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r2', nome: 'GDA Ristorazione Milano', produttoreId: 'pr4', stato: 'pending_approval',
     dataInvio: '2026-07-27',
-    obiettivi: [900, 1800],
+    traguardi: [{ bottiglie: 900, sconto: 0 }, { bottiglie: 1800, sconto: 5 }],
     locationSpedizione: 'Via Valpolicella 8, Negrar (VR)',
     nota: 'Ci interessa il canale ristorazione: possiamo garantire rifornimento settimanale.',
     casse: [
@@ -137,7 +138,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r3', nome: 'GDA Enoteche Sicilia', produttoreId: 'pr6', stato: 'pending_approval',
     dataInvio: '2026-07-24',
-    obiettivi: [450],
+    traguardi: [{ bottiglie: 450, sconto: 0 }],
     locationSpedizione: 'Contrada Feudo, Randazzo (CT)',
     casse: [
       cassa('r3c1', 'Etna in purezza', [['8', 3], ['p-6', 3]], 10),
@@ -147,7 +148,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r4', nome: 'GDA Estate Puglia', produttoreId: 'pr5', stato: 'pending_approval',
     dataInvio: '2026-07-18',
-    obiettivi: [1500, 3000],
+    traguardi: [{ bottiglie: 1500, sconto: 0 }, { bottiglie: 3000, sconto: 5 }],
     locationSpedizione: 'SP 66 km 4, Manduria (TA)',
     nota: 'Volumi alti, prezzo aggressivo: puntiamo alla grande distribuzione.',
     casse: [
@@ -158,7 +159,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r5', nome: 'GDA Bianchi Piemonte', produttoreId: 'pr7', stato: 'pending_approval',
     dataInvio: '2026-07-11',
-    obiettivi: [720],
+    traguardi: [{ bottiglie: 720, sconto: 0 }],
     locationSpedizione: 'Strada Gavi 21, Gavi (AL)',
     casse: [
       cassa('r5c1', 'Gavi selezione', [['11', 6]], 12),
@@ -169,7 +170,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r6', nome: 'GDA Primavera Toscana', produttoreId: 'pr1', stato: 'approved',
     dataInvio: '2026-05-14',
-    obiettivi: [800, 1600],
+    traguardi: [{ bottiglie: 800, sconto: 0 }, { bottiglie: 1600, sconto: 5 }],
     locationSpedizione: 'Via delle Cantine 12, Montalcino (SI)',
     casse: [
       cassa('r6c1', 'Sangiovese in tre annate', [['1', 2], ['3', 2], ['5', 2]], 15),
@@ -178,7 +179,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r7', nome: 'GDA Grandi Rossi', produttoreId: 'pr2', stato: 'approved',
     dataInvio: '2026-04-02',
-    obiettivi: [500, 1000, 2000],
+    traguardi: [{ bottiglie: 500, sconto: 0 }, { bottiglie: 1000, sconto: 5 }, { bottiglie: 2000, sconto: 10 }],
     locationSpedizione: 'Via Roma 4, Barolo (CN)',
     casse: [
       cassa('r7c1', 'Nebbiolo alto', [['2', 3], ['p-2', 3]], 10),
@@ -188,7 +189,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r8', nome: 'GDA Chianti Selection', produttoreId: 'pr3', stato: 'approved',
     dataInvio: '2026-03-19',
-    obiettivi: [1000],
+    traguardi: [{ bottiglie: 1000, sconto: 0 }],
     locationSpedizione: 'Via Chiantigiana 77, Greve in Chianti (FI)',
     casse: [
       cassa('r8c1', 'Chianti e dintorni', [['3', 4], ['p-3', 2]], 16),
@@ -197,7 +198,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r9', nome: 'GDA Natale 2025', produttoreId: 'pr1', stato: 'approved',
     dataInvio: '2025-11-08',
-    obiettivi: [1200],
+    traguardi: [{ bottiglie: 1200, sconto: 0 }],
     locationSpedizione: 'Via delle Cantine 12, Montalcino (SI)',
     casse: [
       cassa('r9c1', 'Regalo Toscana', [['1', 3], ['5', 3]], 12),
@@ -206,7 +207,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r10', nome: 'GDA Pesce e bollicine', produttoreId: 'pr8', stato: 'approved',
     dataInvio: '2026-02-27',
-    obiettivi: [600],
+    traguardi: [{ bottiglie: 600, sconto: 0 }],
     locationSpedizione: 'Via Adriatica 3, Ortona (CH)',
     casse: [
       cassa('r10c1', 'Freschi di costa', [['7', 3], ['p-7', 3]], 18),
@@ -217,7 +218,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r11', nome: 'GDA Enoteche Veneto', produttoreId: 'pr4', stato: 'refused',
     dataInvio: '2026-06-05',
-    obiettivi: [300],
+    traguardi: [{ bottiglie: 300, sconto: 0 }],
     locationSpedizione: 'Via Valpolicella 8, Negrar (VR)',
     motivoRifiuto: 'Fascia di prezzo fuori dalla selezione attiva: servono bottiglie fra €15 e €35.',
     casse: [
@@ -227,7 +228,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r12', nome: 'GDA Sfusi Puglia', produttoreId: 'pr5', stato: 'refused',
     dataInvio: '2026-05-21',
-    obiettivi: [2000],
+    traguardi: [{ bottiglie: 2000, sconto: 0 }],
     locationSpedizione: 'SP 66 km 4, Manduria (TA)',
     motivoRifiuto: 'Sconto proposto troppo alto: il margine per il produttore scendeva sotto il costo.',
     casse: [
@@ -237,7 +238,7 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r13', nome: 'GDA Test Autunno', produttoreId: 'pr5', stato: 'refused',
     dataInvio: '2026-01-15',
-    obiettivi: [400],
+    traguardi: [{ bottiglie: 400, sconto: 0 }],
     locationSpedizione: 'SP 66 km 4, Manduria (TA)',
     motivoRifiuto: 'Documentazione del listino mancante.',
     casse: [
@@ -247,9 +248,9 @@ export const RICHIESTE: Richiesta[] = [
   {
     id: 'r14', nome: 'GDA Bianchi Sardegna', produttoreId: 'pr6', stato: 'refused',
     dataInvio: '2025-12-02',
-    obiettivi: [500],
+    traguardi: [{ bottiglie: 500, sconto: 0 }],
     locationSpedizione: 'Contrada Feudo, Randazzo (CT)',
-    motivoRifiuto: 'Quantità non sufficienti a coprire il primo obiettivo.',
+    motivoRifiuto: 'Quantità non sufficienti a coprire il primo traguardo.',
     casse: [
       cassa('r14c1', 'Bianchi isolani', [['7', 6]], 12),
     ],
@@ -312,6 +313,6 @@ export const CONVERSAZIONI: Record<string, MsgIniziale[]> = {
     { da: 'siply', testo: 'Ci manca il PDF del listino ufficiale. Senza quello non possiamo procedere.', ora: '08:50' },
   ],
   r14: [
-    { da: 'siply', testo: 'Le quantità non coprono il primo obiettivo dichiarato. Rivediamo i numeri insieme?', ora: '13:15' },
+    { da: 'siply', testo: 'Le quantità non coprono il primo traguardo dichiarato. Rivediamo i numeri insieme?', ora: '13:15' },
   ],
 }

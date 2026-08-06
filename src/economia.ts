@@ -3,7 +3,7 @@
 
    Siply non rivende a un prezzo suo deciso caso per caso: le bottiglie le
    compra al prezzo del gruppo e trattiene una quota fissa sul venduto, e le
-   compra solo quando l'obiettivo di bottiglie è stato raggiunto. Quindi il
+   compra solo quando il traguardo di bottiglie è stato raggiunto. Quindi il
    guadagno di Siply non è la differenza fra due prezzi battuti a mano — è una
    percentuale del fatturato, e basta.
 

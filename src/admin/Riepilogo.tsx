@@ -1,8 +1,9 @@
 import { C, alpha } from '../colors'
-import { COMMISSIONE_PCT, QUOTA_PCT, eur, num } from '../economia'
+import { COMMISSIONE_PCT, QUOTA_PCT, eur } from '../economia'
 import * as M from '../motion'
 import { motion } from '../motion'
 import Spiega from '../components/Spiega'
+import { ScalaTraguardi } from '../components/ScalaTraguardi'
 import * as Icon from '../components/Icons'
 import { daCatalogo, produttore, type Richiesta } from './dati'
 import { economiaCassa, vociCassa } from './statistiche'
@@ -163,18 +164,14 @@ export function RiepilogoPannello({ richiesta: r, onClose }: { richiesta: Richie
           {/* Le casse, una per una */}
           {r.casse.map(c => <CassaBlocco key={c.id} cassa={c} />)}
 
-          {/* Obiettivi dichiarati */}
+          {/* La scala dichiarata dal produttore: quante bottiglie a ogni
+              scalino e quanto sconta per arrivarci. Sono le stesse righe che
+              ha visto lui, con gli stessi conti: si approva quello. */}
           <div style={{ marginTop: '12px', padding: '12px 14px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px' }}>
-            <p style={{ color: alpha(C.dark, 0.45), fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '7px' }}>
-              <Spiega k="obiettivi">Obiettivi di vendita</Spiega>
+            <p style={{ color: alpha(C.dark, 0.45), fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              <Spiega k="traguardi">Traguardi e sconti</Spiega>
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {r.obiettivi.map(n => (
-                <span key={n} style={{ fontSize: '12px', fontWeight: 700, color: C.magenta, backgroundColor: alpha(C.magenta, 0.09), border: `1px solid ${alpha(C.magenta, 0.3)}`, padding: '4px 10px', borderRadius: '20px' }}>
-                  {num(n)} bt
-                </span>
-              ))}
-            </div>
+            <ScalaTraguardi traguardi={r.traguardi} casse={r.casse} />
           </div>
 
           {r.nota && (

@@ -19,7 +19,7 @@ const CLAUSOLE: { titolo: string; testo: string }[] = [
     testo: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
   },
   {
-    titolo: 'Obiettivi di vendita',
+    titolo: 'Traguardi di vendita e scala degli sconti',
     testo: 'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.',
   },
   {
@@ -81,7 +81,7 @@ export default function DocumentoModale({ richiesta: r, documento: d, onClose }:
           <Riga etichetta="E" valore={`${p.cantina} — ${p.referente}`} />
           <Riga etichetta="Sede del produttore" valore={`${p.citta}, ${p.regione}`} />
           <Riga etichetta="Casse conferite" valore={`${r.casse.length} · ${bottiglie} bottiglie`} />
-          <Riga etichetta="Obiettivi di vendita" valore={`${r.obiettivi.map(num).join(' · ')} bottiglie`} />
+          <Riga etichetta="Traguardi e sconti" valore={r.traguardi.map((t, i) => `${num(t.bottiglie)} bt${i === 0 ? '' : ` −${t.sconto}%`}`).join(' · ')} />
           <Riga etichetta="Partenza merce" valore={r.locationSpedizione} ultima />
         </div>
 

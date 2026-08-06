@@ -777,7 +777,7 @@ const MOTIVI = [
   'Fascia di prezzo fuori dalla selezione attiva.',
   'Sconto troppo alto: il margine del produttore va sotto il costo.',
   'Documentazione del listino mancante o incompleta.',
-  'Quantità non sufficienti a coprire il primo obiettivo.',
+  'Quantità non sufficienti a coprire il primo traguardo.',
 ]
 
 function SheetRifiuto({ onClose, onConferma }: { onClose: () => void; onConferma: (motivo: string) => void }) {

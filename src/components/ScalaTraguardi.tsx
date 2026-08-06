@@ -1,0 +1,392 @@
+import { useState } from 'react'
+import { C, alpha } from '../colors'
+import { COMMISSIONE, COMMISSIONE_PCT, QUOTA_PCT, alProduttore, eur, num, pct } from '../economia'
+import {
+  ESEMPIO, MAX_SCONTO, SCONTI_RAPIDI,
+  prezzoAlTraguardo, scontoTotale, type Traguardo,
+} from '../traguardi'
+import type { Cassa } from '../App'
+import * as M from '../motion'
+import { motion } from '../motion'
+import * as Icon from './Icons'
+import Spiega from './Spiega'
+
+/* ──────────────────────────────────────────────────────────────────────────
+   La scala degli sconti, disegnata.
+
+   Un traguardo e il suo sconto sono la stessa cosa detta da due parti — "mille
+   bottiglie" e "meno cinque per cento" — e finché stavano su due schede diverse
+   nessuno li leggeva insieme. Qui stanno su una riga sola: le bottiglie, lo
+   sconto, il prezzo che ne esce e i soldi che ne escono. Chi legge non deve
+   ricostruire niente.
+
+   Le stesse righe servono al produttore che compila e a chi in Siply legge la
+   richiesta: cambia solo se i comandi ci sono o no.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* ── Le medie del GDA ─────────────────────────────────────────────────────
+   Un traguardo vale su tutte le casse insieme, ma ogni cassa ha i suoi vini e
+   i suoi prezzi. Per parlare di "una bottiglia" servono quindi delle medie
+   pesate sulle quantità: un vino che c'è in tre bottiglie pesa il triplo di
+   uno che c'è in una sola. */
+
+export interface Medie {
+  /** bottiglie contate in tutte le casse */
+  bottiglie: number
+  /** prezzo medio di listino */
+  listino: number
+  /** prezzo medio GDA di partenza, quello del primo traguardo */
+  gda: number
+  /** prezzo medio a cui il produttore vende a Siply, di partenza */
+  acquisto: number
+  /** costo medio di produzione */
+  costo: number
+}
+
+const VUOTE: Medie = { bottiglie: 0, listino: 0, gda: 0, acquisto: 0, costo: 0 }
+
+export function medieCasse(casse: Cassa[]): Medie {
+  let n = 0, listino = 0, gda = 0, acquisto = 0, costo = 0
+  for (const c of casse) {
+    const voci = c.bottiglie ?? [{ bottiglia: c.bottiglia, quantita: c.quantita }]
+    for (const v of voci) {
+      const id = v.bottiglia.id
+      const val = (r?: Record<string, string>) => {
+        const x = parseFloat(r?.[id] ?? '')
+        return !isNaN(x) && x > 0 ? x : 0
+      }
+      // senza prezzo GDA scritto vale il listino: è quello che si paga
+      const prezzoGda = val(c.prezziScontati) || v.bottiglia.prezzo
+      n += v.quantita
+      listino += v.bottiglia.prezzo * v.quantita
+      gda += prezzoGda * v.quantita
+      acquisto += val(c.costiScontati) * v.quantita
+      costo += val(c.costiUnitari) * v.quantita
+    }
+  }
+  if (n === 0) return VUOTE
+  return { bottiglie: n, listino: listino / n, gda: gda / n, acquisto: acquisto / n, costo: costo / n }
+}
+
+/** I numeri di un traguardo, tutti derivati dalle medie e dallo sconto. */
+export function contiTraguardo(t: Traguardo, m: Medie) {
+  const prezzo = prezzoAlTraguardo(m.gda, t.sconto)
+  const acquisto = prezzoAlTraguardo(m.acquisto, t.sconto)
+  return {
+    prezzo,
+    acquisto,
+    sconto: scontoTotale(m.listino, m.gda, t.sconto),
+    valore: prezzo * t.bottiglie,
+    incasso: acquisto > 0 ? alProduttore(acquisto * t.bottiglie) : null,
+    netto: acquisto > 0 && m.costo > 0
+      ? alProduttore(acquisto * t.bottiglie) - m.costo * t.bottiglie
+      : null,
+  }
+}
+
+/* ── Una riga della scala ────────────────────────────────────────────────── */
+
+const ETICHETTA: React.CSSProperties = {
+  fontSize: '10px', fontWeight: 700, textTransform: 'uppercase',
+  letterSpacing: '0.08em', color: alpha(C.dark, 0.42),
+}
+
+export function RigaTraguardo({ indice, traguardo: t, medie: m, onSconto, onRimuovi, incoerente }: {
+  indice: number
+  traguardo: Traguardo
+  medie: Medie
+  /** presente = si può cambiare lo sconto; assente = riga in sola lettura */
+  onSconto?: (v: number) => void
+  onRimuovi?: () => void
+  /** la scala non sale: più bottiglie ma sconto uguale o più basso */
+  incoerente?: boolean
+}) {
+  const primo = indice === 0
+  const conti = contiTraguardo(t, m)
+  const numeri = m.bottiglie > 0 && m.listino > 0
+
+  return (
+    <div style={{ padding: '14px 0', borderTop: indice > 0 ? `1px solid ${alpha(C.dark, 0.08)}` : 'none' }}>
+
+      {/* Bottiglie e sconto sulla stessa riga: è il patto, e si legge tutto
+          insieme o non si legge. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <span style={{
+          flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: '4px',
+          backgroundColor: alpha(C.magenta, 0.09), border: `1.5px solid ${alpha(C.magenta, 0.3)}`,
+          borderRadius: '10px', padding: '5px 11px',
+        }}>
+          <span style={{ color: C.magenta, fontSize: '15px', fontWeight: 800 }}>{num(t.bottiglie)}</span>
+          <span style={{ color: alpha(C.magenta, 0.7), fontSize: '11px', fontWeight: 600 }}>bt</span>
+        </span>
+
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={alpha(C.dark, 0.25)} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+
+        {primo ? (
+          <span style={{ flex: 1, minWidth: 0, color: C.gray, fontSize: '12.5px', fontWeight: 600 }}>
+            <Spiega k="traguardoBase">Prezzo di partenza</Spiega>
+          </span>
+        ) : onSconto ? (
+          <StepperSconto valore={t.sconto} onCambia={onSconto} />
+        ) : (
+          <span style={{ flex: 1, minWidth: 0, color: C.forest, fontSize: '13px', fontWeight: 700 }}>
+            −{t.sconto}% <span style={{ color: C.gray, fontWeight: 500, fontSize: '12px' }}>in più</span>
+          </span>
+        )}
+
+        {onRimuovi && (
+          <M.IconButton
+            onClick={onRimuovi}
+            title={`Togli il traguardo di ${num(t.bottiglie)} bottiglie`}
+            style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: alpha(C.dark, 0.35), fontSize: '17px', lineHeight: 1, padding: '0 2px' }}
+          >×</M.IconButton>
+        )}
+      </div>
+
+      {incoerente && (
+        <p style={{ color: C.olive, fontSize: '11.5px', lineHeight: 1.5, marginTop: '8px', backgroundColor: alpha(C.ocra, 0.16), borderRadius: '10px', padding: '7px 10px' }}>
+          Più bottiglie ma non più sconto: così questo traguardo non dà a nessuno un motivo per arrivarci.
+        </p>
+      )}
+
+      {/* Cosa vuol dire, in prezzo e in soldi */}
+      {numeri ? (
+        <div style={{ marginTop: '10px', backgroundColor: alpha(C.dark, 0.035), borderRadius: '12px', padding: '11px 13px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '10px' }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={ETICHETTA}>
+                <Spiega
+                  k="scontoTotaleListino"
+                  calcolo={`€${eur(m.listino)} − €${eur(conti.prezzo)} ÷ €${eur(m.listino)} = ${Math.round(conti.sconto)}%`}
+                >
+                  Sconto sul listino
+                </Spiega>
+              </p>
+              <p style={{ color: C.forest, fontSize: '19px', fontWeight: 800, lineHeight: 1.2 }}>
+                −{Math.round(conti.sconto)}%
+              </p>
+            </div>
+            <div style={{ textAlign: 'right', minWidth: 0 }}>
+              <p style={ETICHETTA}>
+                <Spiega
+                  k="prezzoTraguardo"
+                  calcolo={t.sconto > 0
+                    ? `€${eur(m.gda)} × ${100 - t.sconto}% = €${eur(conti.prezzo)}`
+                    : undefined}
+                >
+                  Prezzo a bottiglia
+                </Spiega>
+              </p>
+              <p style={{ color: C.dark, fontSize: '19px', fontWeight: 800, lineHeight: 1.2 }}>
+                €{eur(conti.prezzo)}
+              </p>
+            </div>
+          </div>
+
+          {/* Quanto si scende, visto: la barra cresce di traguardo in traguardo
+              e la scala si legge di colpo, senza confrontare percentuali. */}
+          <div style={{ height: '6px', borderRadius: '3px', backgroundColor: alpha(C.dark, 0.08), marginTop: '10px', overflow: 'hidden' }}>
+            <motion.div
+              initial={false}
+              animate={{ width: `${Math.min(100, Math.max(0, conti.sconto) * 2)}%` }}
+              transition={M.T.press}
+              style={{ height: '100%', borderRadius: '3px', backgroundColor: C.forest }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: '11px' }}>
+            <Voce
+              etichetta={<Spiega k="valoreGda" calcolo={`€${eur(conti.prezzo)} × ${num(t.bottiglie)} bt = €${eur(conti.valore)}`}>Il gruppo spende</Spiega>}
+              valore={`€${eur(conti.valore)}`}
+            />
+            <Voce
+              etichetta={<Spiega k="ricavoProduttore" calcolo={conti.incasso !== null ? `€${eur(conti.acquisto)} × ${num(t.bottiglie)} bt × ${QUOTA_PCT} = €${eur(conti.incasso)}` : undefined}>Incassi tu</Spiega>}
+              valore={conti.incasso !== null ? `€${eur(conti.incasso)}` : '—'}
+              colore={C.magenta}
+            />
+            {conti.netto !== null && conti.incasso !== null && (
+              <Voce
+                etichetta={<Spiega k="margineNetto" calcolo={`€${eur(conti.incasso)} − €${eur(m.costo * t.bottiglie)} = ${conti.netto >= 0 ? '+' : ''}€${eur(conti.netto)}`}>Ti resta netto</Spiega>}
+                valore={`${conti.netto >= 0 ? '+' : ''}€${eur(conti.netto)}`}
+                colore={conti.netto >= 0 ? C.forest : C.magenta}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.5, marginTop: '8px' }}>
+          Aggiungi una cassa con i suoi prezzi e qui compaiono lo sconto sul listino e i tuoi ricavi.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function Voce({ etichetta, valore, colore }: { etichetta: React.ReactNode; valore: string; colore?: string }) {
+  return (
+    <div style={{ minWidth: '92px' }}>
+      <p style={ETICHETTA}>{etichetta}</p>
+      <p style={{ color: colore ?? C.dark, fontSize: '14px', fontWeight: 800, lineHeight: 1.3 }}>{valore}</p>
+    </div>
+  )
+}
+
+/* ── Il comando dello sconto ─────────────────────────────────────────────── */
+
+function StepperSconto({ valore, onCambia }: { valore: number; onCambia: (v: number) => void }) {
+  const cambia = (d: number) => onCambia(Math.min(MAX_SCONTO, Math.max(0, valore + d)))
+  const bottone: React.CSSProperties = {
+    width: '30px', height: '30px', border: 'none', cursor: 'pointer',
+    backgroundColor: alpha(C.dark, 0.05), color: C.dark,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '18px', fontWeight: 300, lineHeight: 1,
+  }
+  return (
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+      <span style={{ color: C.gray, fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+        <Spiega k="scontoInPiu">Sconto in più</Spiega>
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${alpha(C.forest, 0.3)}`, borderRadius: '10px', overflow: 'hidden' }}>
+        <M.IconButton onClick={() => cambia(-1)} disabled={valore <= 0} style={{ ...bottone, color: valore <= 0 ? alpha(C.dark, 0.25) : C.dark, cursor: valore <= 0 ? 'default' : 'pointer' }}>−</M.IconButton>
+        <span style={{ minWidth: '52px', textAlign: 'center', color: C.forest, fontSize: '14px', fontWeight: 800, backgroundColor: C.white }}>
+          −{valore}%
+        </span>
+        <M.IconButton onClick={() => cambia(1)} disabled={valore >= MAX_SCONTO} style={{ ...bottone, color: valore >= MAX_SCONTO ? alpha(C.dark, 0.25) : C.dark, cursor: valore >= MAX_SCONTO ? 'default' : 'pointer' }}>+</M.IconButton>
+      </div>
+      {valore === 0 && (
+        // A zero il traguardo non sblocca niente: le scorciatoie tolgono di
+        // mezzo la domanda "quanto ci metto?" al momento in cui si presenta.
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+          {SCONTI_RAPIDI.map(s => (
+            <M.Chip
+              key={s}
+              type="button"
+              onClick={() => onCambia(s)}
+              style={{ backgroundColor: alpha(C.forest, 0.08), color: C.forest, border: 'none', borderRadius: '8px', padding: '4px 8px', fontSize: '11.5px', fontWeight: 700, cursor: 'pointer' }}
+            >
+              −{s}%
+            </M.Chip>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── La scala in sola lettura ─────────────────────────────────────────────
+   Per il dettaglio del GDA e per chi in Siply legge la richiesta: gli stessi
+   numeri che ha visto il produttore mentre li decideva. */
+
+export function ScalaTraguardi({ traguardi, casse }: { traguardi: Traguardo[]; casse: Cassa[] }) {
+  const medie = medieCasse(casse)
+  if (traguardi.length === 0) return null
+  return (
+    <div>
+      {traguardi.map((t, i) => (
+        <RigaTraguardo key={`${t.bottiglie}-${i}`} indice={i} traguardo={t} medie={medie} />
+      ))}
+    </div>
+  )
+}
+
+/* ── L'esempio ───────────────────────────────────────────────────────────── */
+
+/**
+ * Una scala finta, con numeri veri, da leggere prima di compilare la propria.
+ * Sta chiusa: chi ha già capito non se la trova fra i piedi, chi non ha capito
+ * la apre. I risultati escono dalle stesse funzioni che macinano i dati veri,
+ * quindi l'esempio non può promettere un conto diverso da quello che poi fa
+ * l'app.
+ */
+export function EsempioScala() {
+  const [aperto, setAperto] = useState(false)
+  const e = ESEMPIO
+  const m: Medie = { bottiglie: 1, listino: e.listino, gda: e.prezzoGda, acquisto: e.acquistoSiply, costo: 0 }
+  const righe = e.traguardi.map(t => ({ t, c: contiTraguardo(t, m) }))
+  const primo = righe[0]
+  const ultimo = righe[righe.length - 1]
+  const volte = primo.c.incasso && ultimo.c.incasso ? ultimo.c.incasso / primo.c.incasso : 0
+
+  return (
+    <div style={{ marginTop: '12px' }}>
+      <M.Button
+        type="button"
+        onClick={() => setAperto(a => !a)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '7px', width: '100%',
+          backgroundColor: aperto ? alpha(C.ocra, 0.2) : alpha(C.ocra, 0.12),
+          border: 'none', cursor: 'pointer', borderRadius: '12px', padding: '11px 13px',
+          color: C.olive, fontSize: '13px', fontWeight: 700, textAlign: 'left',
+          transition: 'background-color 0.2s',
+        }}
+      >
+        <Icon.Appunti size={17} />
+        <span style={{ flex: 1 }}>{aperto ? "Chiudi l'esempio" : 'Guarda un esempio con i numeri'}</span>
+        <M.Chevron open={aperto} size={15} color={C.olive} />
+      </M.Button>
+
+      <M.Collapse open={aperto}>
+        <div style={{ padding: '14px 2px 2px' }}>
+          <p style={{ color: C.dark, fontSize: '13px', lineHeight: 1.6, marginBottom: '12px' }}>
+            La cantina mette in GDA il <strong>{e.vino}</strong>: listino <strong>€{e.listino}</strong>, prezzo del gruppo di partenza <strong>€{e.prezzoGda}</strong> e a Siply lo vende a <strong>€{e.acquistoSiply}</strong>. Poi fissa tre traguardi.
+          </p>
+
+          {righe.map(({ t, c }, i) => (
+            <div
+              key={t.bottiglie}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+                padding: '10px 12px', borderRadius: '12px', marginBottom: '6px',
+                backgroundColor: alpha(C.dark, i === righe.length - 1 ? 0.06 : 0.035),
+              }}
+            >
+              <span style={{ flexShrink: 0, color: C.magenta, fontSize: '13px', fontWeight: 800, minWidth: '58px' }}>
+                {num(t.bottiglie)} bt
+              </span>
+              <span style={{ flexShrink: 0, color: C.gray, fontSize: '11.5px', minWidth: '92px' }}>
+                {i === 0 ? 'parte da qui' : `sconto in più −${t.sconto}%`}
+              </span>
+              <span style={{ flexShrink: 0, color: C.dark, fontSize: '13px', fontWeight: 800, minWidth: '56px' }}>
+                €{eur(c.prezzo)}
+              </span>
+              <span style={{ flexShrink: 0, color: C.forest, fontSize: '11.5px', fontWeight: 700, backgroundColor: alpha(C.forest, 0.1), borderRadius: '20px', padding: '2px 8px' }}>
+                −{Math.round(c.sconto)}% sul listino
+              </span>
+              <span style={{ marginLeft: 'auto', color: C.gray, fontSize: '11.5px', whiteSpace: 'nowrap' }}>
+                incassi <strong style={{ color: C.dark, fontSize: '12.5px' }}>€{eur(c.incasso ?? 0)}</strong>
+              </span>
+            </div>
+          ))}
+
+          <p style={{ color: C.olive, fontSize: '12.5px', lineHeight: 1.6, marginTop: '10px', backgroundColor: alpha(C.ocra, 0.14), borderRadius: '12px', padding: '11px 13px' }}>
+            All'ultimo traguardo la bottiglia scende da €{eur(primo.c.prezzo)} a €{eur(ultimo.c.prezzo)}: <strong>sconti il {Math.round(ultimo.c.sconto)}% invece del {Math.round(primo.c.sconto)}%</strong>, ma vendi {Math.round(ultimo.t.bottiglie / primo.t.bottiglie)} volte le bottiglie —
+            {' '}<strong>incassi {pct(volte)} volte di più</strong>, €{eur(ultimo.c.incasso ?? 0)} invece di €{eur(primo.c.incasso ?? 0)}. È questo che lo sconto compra.
+          </p>
+        </div>
+      </M.Collapse>
+    </div>
+  )
+}
+
+/* ── La fetta di Siply ───────────────────────────────────────────────────── */
+
+/** Sempre uguale a qualunque traguardo — è una percentuale — quindi si dice
+ *  una volta sola in fondo alla scala, non ripetuta a ogni riga. */
+export function StrisciaCommissione() {
+  return (
+    <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${alpha(C.dark, 0.08)}` }}>
+      <div style={{ height: '7px', borderRadius: '4px', backgroundColor: alpha(C.dark, 0.08), overflow: 'hidden', display: 'flex' }}>
+        <div style={{ flex: 1 - COMMISSIONE, backgroundColor: C.ocra, borderRadius: '4px 0 0 4px' }} />
+        <div style={{ flex: COMMISSIONE, backgroundColor: C.green, borderRadius: '0 4px 4px 0' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', gap: '10px' }}>
+        <span style={{ color: C.olive, fontSize: '11.5px', fontWeight: 600 }}>Di quello che chiedi, tuo il {QUOTA_PCT}</span>
+        <span style={{ color: C.forest, fontSize: '11.5px', fontWeight: 600 }}>
+          <Spiega k="commissioneSiply">Siply {COMMISSIONE_PCT}</Spiega>
+        </span>
+      </div>
+    </div>
+  )
+}

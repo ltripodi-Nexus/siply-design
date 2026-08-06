@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { C, alpha } from '../colors'
 import { cassaTotale, type Cassa, type CassaBottiglia, type Gda, type GdaPayload } from '../App'
-import { COMMISSIONE, COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, num, pct } from '../economia'
+import { COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, num, pct } from '../economia'
 import { WINES, FILTERS_INIT, applyFilters, activeFilterCount, type WineRich, type WineFilters } from '../data/wines'
 import WineFilterPanel from '../components/WineFilterPanel'
 import * as M from '../motion'
@@ -9,6 +9,11 @@ import { motion, AnimatePresence } from '../motion'
 import * as Icon from '../components/Icons'
 import { scrollToFooter } from '../components/Footer'
 import Spiega from '../components/Spiega'
+import IndirizzoInput from '../components/IndirizzoInput'
+import { EsempioScala, RigaTraguardo, StrisciaCommissione, medieCasse } from '../components/ScalaTraguardi'
+import {
+  MAX_BOTTIGLIE, MAX_TRAGUARDI, normalizza, traguardoIncoerente, type Traguardo,
+} from '../traguardi'
 import { useDemo, DEMO_CASSA, demoListino } from '../demo'
 
 interface Props {
@@ -20,35 +25,11 @@ interface Props {
   onAnnulla: () => void
 }
 
-/** Tetto alle bottiglie di un obiettivo di vendita. */
-const MAX_BOTTIGLIE = 100000
-/** Quanti obiettivi si possono fissare: oltre, non si confrontano più a occhio. */
-const MAX_OBIETTIVI = 6
-
-function clampObiettivo(v: string): string {
+function clampTraguardo(v: string): string {
   if (v === '') return ''
   const n = parseInt(v)
   if (isNaN(n)) return ''
   return String(Math.min(Math.max(n, 0), MAX_BOTTIGLIE))
-}
-
-/** Righe {listino, qty, prezzo scontato, prezzo acquisto Siply, costo} di una cassa. */
-function righeCassa(c: Cassa) {
-  const voci = c.bottiglie ?? [{ bottiglia: c.bottiglia, quantita: c.quantita }]
-  return voci.map(v => {
-    const id = v.bottiglia.id
-    const val = (r?: Record<string, string>) => {
-      const n = parseFloat(r?.[id] ?? '')
-      return !isNaN(n) && n > 0 ? n : 0
-    }
-    return {
-      listino: v.bottiglia.prezzo,
-      qty: v.quantita,
-      ps: val(c.prezziScontati),
-      paS: val(c.costiScontati),
-      cp: val(c.costiUnitari),
-    }
-  })
 }
 
 /** Cassa finta già presente nel GDA, usata solo dal pulsante Demo. */
@@ -107,13 +88,13 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
   const [costiUnitari, setCostiUnitari] = useState<Record<string, string>>({})
   const [costiScontati, setCostiScontati] = useState<Record<string, string>>({})
   const [listinoPdf, setListinoPdf] = useState<File | null>(null)
-  // Spedizione e obiettivi valgono per tutto il GDA: si impostano una volta
+  // Spedizione e traguardi valgono per tutto il GDA: si impostano una volta
   // e non vengono azzerati quando si passa alla cassa successiva.
   const [locationSpedizione, setLocationSpedizione] = useState(gdaTarget?.locationSpedizione ?? '')
   const [noteSpedizione, setNoteSpedizione] = useState(gdaTarget?.noteSpedizione ?? '')
-  /** Sempre ordinati e senza doppioni: ci pensa `aggiungiObiettivo`. */
-  const [obiettivi, setObiettivi] = useState<number[]>(gdaTarget?.obiettivi ?? [])
-  const [nuovoObiettivo, setNuovoObiettivo] = useState('')
+  /** Sempre ordinati e senza doppioni: ci pensa `aggiungiTraguardo`. */
+  const [traguardi, setTraguardi] = useState<Traguardo[]>(gdaTarget?.traguardi ?? [])
+  const [nuovoTraguardo, setNuovoTraguardo] = useState('')
 
   useDemo(mode => {
     if (mode === 'clear') {
@@ -130,8 +111,8 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
       setListinoPdf(null)
       setLocationSpedizione(gdaTarget?.locationSpedizione ?? '')
       setNoteSpedizione(gdaTarget?.noteSpedizione ?? '')
-      setObiettivi([])
-      setNuovoObiettivo('')
+      setTraguardi([])
+      setNuovoTraguardo('')
       return
     }
     if (!aggiunta) setGdaNome(DEMO_CASSA.gdaNome)
@@ -144,21 +125,31 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     setListinoPdf(demoListino())
     setLocationSpedizione(DEMO_CASSA.locationSpedizione)
     setNoteSpedizione(DEMO_CASSA.noteSpedizione)
-    setObiettivi(DEMO_CASSA.obiettivi)
+    setTraguardi(DEMO_CASSA.traguardi)
     // una cassa già dentro il GDA, così il riepilogo non è vuoto e si vede
     // il caso multi-cassa: quella in lavorazione diventerà la seconda
     if (!aggiunta) setCasseAggiunte([demoDraft()])
   })
 
-  /** Aggiunge un obiettivo tenendo la lista ordinata e senza doppioni: due
+  /** Aggiunge un traguardo tenendo la scala ordinata e senza doppioni: due
    *  volte lo stesso numero non vuol dire niente, e uno più piccolo scritto
-   *  dopo va comunque letto prima. */
-  const aggiungiObiettivo = () => {
-    const n = parseInt(nuovoObiettivo)
+   *  dopo va comunque letto prima. Lo sconto parte da quello del traguardo che
+   *  lo precede: una scala che scende sarebbe un errore, e proporla come punto
+   *  di partenza sarebbe peggio. */
+  const aggiungiTraguardo = () => {
+    const n = parseInt(nuovoTraguardo)
     if (isNaN(n) || n <= 0) return
-    setObiettivi(p => p.includes(n) || p.length >= MAX_OBIETTIVI ? p : [...p, n].sort((a, b) => a - b))
-    setNuovoObiettivo('')
+    setTraguardi(p => {
+      if (p.length >= MAX_TRAGUARDI || p.some(t => t.bottiglie === n)) return p
+      const precedente = [...p].sort((a, b) => a.bottiglie - b.bottiglie).filter(t => t.bottiglie < n).pop()
+      return normalizza([...p, { bottiglie: n, sconto: precedente ? precedente.sconto : 0 }])
+    })
+    setNuovoTraguardo('')
   }
+
+  /** Cambia lo sconto di un traguardo, lasciando intatti gli altri. */
+  const cambiaSconto = (bottiglie: number, sconto: number) =>
+    setTraguardi(p => normalizza(p.map(t => t.bottiglie === bottiglie ? { ...t, sconto } : t)))
 
   const gdaPronto = gdaNome.trim().length > 0
   // le casse di un GDA già inviato si vedono ma non si toccano; quelle di una
@@ -168,7 +159,18 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     () => casseEsistenti.reduce((s, c) => s + c.quantita, 0) + casseAggiunte.reduce((s, c) => s + c.quantita, 0),
     [casseEsistenti, casseAggiunte],
   )
-  const obiettivoLimitato = parseInt(nuovoObiettivo) === MAX_BOTTIGLIE
+  const traguardoLimitato = parseInt(nuovoTraguardo) === MAX_BOTTIGLIE
+
+  /* Le medie su cui poggia tutta la scala. Un traguardo vale sull'intero GDA,
+     quindi si contano insieme le casse già dentro e quelle appena aggiunte:
+     è su quelle bottiglie che il gruppo arriverà al traguardo, non su metà. */
+  const medie = useMemo(
+    () => medieCasse([...casseEsistenti, ...casseAggiunte]),
+    [casseEsistenti, casseAggiunte],
+  )
+  /** Il primo scalino che non sale. Si segnala sulla riga e basta: quanto
+   *  scontare è una scelta del produttore, non una regola nostra. */
+  const scalaRotta = useMemo(() => traguardoIncoerente(traguardi), [traguardi])
 
   const setF = (p: Partial<WineFilters>) => setFilters(f => ({ ...f, ...p }))
   const nActive = activeFilterCount(filters)
@@ -257,7 +259,7 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
   const datiGda = (): GdaPayload => ({
     nome: gdaNome,
     casse: casseAggiunte,
-    obiettivi: obiettivi.length > 0 ? obiettivi : undefined,
+    traguardi: traguardi.length > 0 ? traguardi : undefined,
     locationSpedizione: locationSpedizione.trim() || undefined,
     noteSpedizione: noteSpedizione.trim() || undefined,
   })
@@ -866,6 +868,16 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                   </>
                 )}
               </div>
+
+              {/* Il collegamento fra questo passo e la scala del riepilogo.
+                  Senza, questi prezzi sembrano l'ultima parola — e poi nel
+                  riepilogo ne compaiono altri, più bassi, senza spiegazione. */}
+              <div style={{ display: 'flex', gap: '10px', backgroundColor: alpha(C.magenta, 0.06), borderRadius: '12px', padding: '11px 13px', margin: '0 0 16px' }}>
+                <Icon.Bersaglio size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
+                <p style={{ color: C.dark, fontSize: '12px', lineHeight: 1.55 }}>
+                  Questo è il <strong>prezzo di partenza</strong>, quello del primo traguardo. Nel riepilogo fissi i traguardi successivi e decidi quanto scendere ancora se il gruppo compra di più.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1308,65 +1320,91 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
             onNote={setNoteSpedizione}
           />
 
-          {/* Obiettivi di vendita sull'intero GDA */}
+          {/* ── Traguardi e sconti ──
+              Il patto con chi compra sta tutto in questa scheda: quante
+              bottiglie, quanto sconto, e cosa vuol dire in soldi. Prima erano
+              due schede separate — i numeri di bottiglie qui, la stima dei
+              ricavi più sotto — e il legame fra le due cose, che è poi il
+              punto, non si vedeva da nessuna parte. */}
           <div style={{ backgroundColor: C.white, borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
             <div style={{ padding: '14px 20px', backgroundColor: alpha(C.dark, 0.03), borderBottom: `1px solid ${alpha(C.dark, 0.06)}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon.Bersaglio size={16} />
-              <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Obiettivi di vendita</p>
+              <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Traguardi e sconti</p>
             </div>
             <div style={{ padding: '16px 20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>
-                <Spiega k="obiettivi">Quante bottiglie punti a vendere</Spiega>
+                <Spiega k="traguardi">Più il gruppo compra, meno paga</Spiega>
               </label>
-              <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>
-                Su tutte le casse del GDA. Puoi fissarne più di uno — un traguardo minimo e altri più ambiziosi — e vedere per ognuno quanto porti a casa. Massimo {num(MAX_BOTTIGLIE)} bottiglie per obiettivo.
+              <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.55 }}>
+                Decidi quante bottiglie deve vendere il GDA e quanto scendi di prezzo a ogni scalino. Il primo traguardo si paga al prezzo che hai già messo sulle bottiglie; da lì in su lo sconto in più lo aggiungi tu. Fino a {MAX_TRAGUARDI} traguardi, {num(MAX_BOTTIGLIE)} bottiglie l'uno.
               </p>
 
-              {/* Gli obiettivi già fissati: si tolgono con la × */}
-              {obiettivi.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+              {/* L'esempio prima della scala: chi non ha mai visto come
+                  funziona lo trova sulla strada, senza doverlo cercare. */}
+              <EsempioScala />
+
+              {/* La scala, uno scalino per riga */}
+              {traguardi.length > 0 && (
+                <div style={{ marginTop: '6px' }}>
                   <AnimatePresence initial={false}>
-                    {obiettivi.map(n => (
+                    {traguardi.map((t, i) => (
                       <motion.div
-                        key={n} layout
-                        variants={M.V.pop} initial="initial" animate="animate" exit="exit"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: alpha(C.magenta, 0.08), border: `1.5px solid ${alpha(C.magenta, 0.35)}`, borderRadius: '12px', padding: '8px 8px 8px 12px' }}
+                        key={t.bottiglie} layout
+                        variants={M.V.item} initial="initial" animate="animate" exit="exit"
                       >
-                        <span style={{ color: C.magenta, fontSize: '15px', fontWeight: 800 }}>{num(n)}</span>
-                        <span style={{ color: C.gray, fontSize: '12px' }}>bt</span>
-                        <M.IconButton
-                          onClick={() => setObiettivi(p => p.filter(x => x !== n))}
-                          title={`Togli l'obiettivo di ${num(n)} bottiglie`}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: alpha(C.dark, 0.35), fontSize: '16px', lineHeight: 1, padding: '0 2px' }}
-                        >×</M.IconButton>
+                        <RigaTraguardo
+                          indice={i}
+                          traguardo={t}
+                          medie={medie}
+                          incoerente={i === scalaRotta}
+                          onSconto={v => cambiaSconto(t.bottiglie, v)}
+                          onRimuovi={() => setTraguardi(p => normalizza(p.filter(x => x.bottiglie !== t.bottiglie)))}
+                        />
                       </motion.div>
                     ))}
                   </AnimatePresence>
+
+                  {medie.acquisto > 0 && <StrisciaCommissione />}
+
+                  {medie.bottiglie > 0 && (medie.acquisto === 0 || medie.costo === 0) && (
+                    <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.5, marginTop: '12px' }}>
+                      {medie.acquisto === 0
+                        ? 'Scrivi il prezzo acquisto Siply nel passo Dettagli per sapere quanto incassi a ogni traguardo.'
+                        : 'Scrivi il costo di produzione nel passo Dettagli per vedere anche quanto ti resta netto.'}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {obiettivi.length < MAX_OBIETTIVI && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px', padding: '12px 12px 12px 16px', border: `1.5px solid ${nuovoObiettivo ? C.magenta : alpha(C.dark, 0.1)}`, transition: 'border-color 0.2s' }}>
+              {traguardi.length === 0 && (
+                <p style={{ color: C.gray, fontSize: '12.5px', lineHeight: 1.55, backgroundColor: alpha(C.dark, 0.035), borderRadius: '12px', padding: '12px 14px', margin: '12px 0 0' }}>
+                  Nessun traguardo fissato. Senza una scala il gruppo compra al prezzo di partenza e basta: nessuno ha un motivo per aggiungere bottiglie.
+                </p>
+              )}
+
+              {/* Aggiungi uno scalino */}
+              {traguardi.length < MAX_TRAGUARDI && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px', padding: '12px 12px 12px 16px', border: `1.5px solid ${nuovoTraguardo ? C.magenta : alpha(C.dark, 0.1)}`, transition: 'border-color 0.2s', marginTop: '14px' }}>
                   <Icon.Bottiglia size={22} />
                   <input
                     type="number"
                     min="1"
                     max={MAX_BOTTIGLIE}
-                    placeholder={obiettivi.length === 0 ? 'es. 1200' : 'un altro traguardo'}
-                    value={nuovoObiettivo}
-                    onChange={e => setNuovoObiettivo(clampObiettivo(e.target.value))}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aggiungiObiettivo() } }}
+                    placeholder={traguardi.length === 0 ? 'es. 600 bottiglie' : 'un altro traguardo'}
+                    value={nuovoTraguardo}
+                    onChange={e => setNuovoTraguardo(clampTraguardo(e.target.value))}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aggiungiTraguardo() } }}
                     style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: C.dark, fontSize: '20px', fontWeight: 800 }}
                   />
                   <M.Chip
                     type="button"
-                    onClick={aggiungiObiettivo}
-                    disabled={!nuovoObiettivo}
+                    onClick={aggiungiTraguardo}
+                    disabled={!nuovoTraguardo}
                     style={{
-                      flexShrink: 0, backgroundColor: nuovoObiettivo ? C.magenta : alpha(C.dark, 0.1),
-                      color: nuovoObiettivo ? C.bg : alpha(C.dark, 0.35),
+                      flexShrink: 0, backgroundColor: nuovoTraguardo ? C.magenta : alpha(C.dark, 0.1),
+                      color: nuovoTraguardo ? C.bg : alpha(C.dark, 0.35),
                       border: 'none', borderRadius: '10px', padding: '9px 14px',
-                      fontSize: '13px', fontWeight: 700, cursor: nuovoObiettivo ? 'pointer' : 'default',
+                      fontSize: '13px', fontWeight: 700, cursor: nuovoTraguardo ? 'pointer' : 'default',
                       transition: 'background-color 0.2s',
                     }}
                   >
@@ -1374,142 +1412,18 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                   </M.Chip>
                 </div>
               )}
-              {obiettivoLimitato && (
+              {traguardoLimitato && (
                 <p style={{ color: C.magenta, fontSize: '12px', fontWeight: 600, marginTop: '8px' }}>
                   Il massimo consentito è {num(MAX_BOTTIGLIE)} bottiglie.
                 </p>
               )}
-              {obiettivi.length >= MAX_OBIETTIVI && (
-                <p style={{ color: C.gray, fontSize: '12px', marginTop: '4px' }}>
-                  Hai fissato {MAX_OBIETTIVI} obiettivi: è il massimo. Togline uno per aggiungerne un altro.
+              {traguardi.length >= MAX_TRAGUARDI && (
+                <p style={{ color: C.gray, fontSize: '12px', marginTop: '12px' }}>
+                  Hai fissato {MAX_TRAGUARDI} traguardi: è il massimo. Togline uno per aggiungerne un altro.
                 </p>
               )}
             </div>
           </div>
-
-          {/* Stima ricavi per ogni obiettivo, calcolata su tutte le casse del GDA */}
-          {(() => {
-            if (obiettivi.length === 0) return null
-
-            let sumPrezzoScontato = 0, sumChiesto = 0, sumCostoProduttore = 0, totalW = 0
-            for (const c of casseAggiunte) {
-              for (const r of righeCassa(c)) {
-                totalW += r.qty
-                sumPrezzoScontato += (r.ps > 0 ? r.ps : r.listino) * r.qty
-                sumChiesto += r.paS * r.qty
-                sumCostoProduttore += r.cp * r.qty
-              }
-            }
-            if (totalW === 0) return null
-
-            const avgPS = sumPrezzoScontato / totalW
-            const avgPAS = sumChiesto / totalW
-            const avgCP = sumCostoProduttore / totalW
-
-            return (
-              <div style={{ backgroundColor: C.dark, borderRadius: '20px', padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.14)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                  <Icon.Trend size={18} />
-                  <p style={{ color: alpha(C.silver, 0.5), fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                    Stima ricavi per obiettivo
-                  </p>
-                </div>
-
-                {/* La fetta è sempre la stessa a qualunque obiettivo — è una
-                    percentuale — quindi sta in cima una volta sola invece che
-                    ripetuta a ogni riga. Divide quello che fatturi tu, non
-                    quello che spende chi compra. */}
-                {avgPAS > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ height: '8px', borderRadius: '4px', backgroundColor: alpha(C.white, 0.1), overflow: 'hidden', display: 'flex' }}>
-                      <div style={{ flex: 1 - COMMISSIONE, backgroundColor: C.ocra, borderRadius: '4px 0 0 4px' }} />
-                      <div style={{ flex: COMMISSIONE, backgroundColor: C.green, borderRadius: '0 4px 4px 0' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-                      <span style={{ color: C.ocra, fontSize: '11.5px', fontWeight: 600 }}>Di quello che chiedi, tuo il {QUOTA_PCT}</span>
-                      <span style={{ color: C.green, fontSize: '11.5px', fontWeight: 600 }}>Siply {COMMISSIONE_PCT}</span>
-                    </div>
-                  </div>
-                )}
-
-                <AnimatePresence initial={false}>
-                  {obiettivi.map((n, i) => {
-                    const valore = n * avgPS
-                    const fatturato = avgPAS > 0 ? avgPAS * n : null
-                    const quotaSiply = fatturato !== null ? commissione(fatturato) : null
-                    const incasso = fatturato !== null ? alProduttore(fatturato) : null
-                    const costo = avgCP * n
-                    const netto = incasso !== null && avgCP > 0 ? incasso - costo : null
-                    return (
-                      <motion.div
-                        key={n} layout
-                        variants={M.V.item} initial="initial" animate="animate" exit="exit"
-                        style={{ padding: '12px 0', borderTop: i > 0 ? `1px solid ${alpha(C.white, 0.07)}` : 'none' }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                          <span style={{ flexShrink: 0, color: C.bg, fontSize: '13px', fontWeight: 700, backgroundColor: alpha(C.white, 0.1), padding: '4px 10px', borderRadius: '20px' }}>
-                            {num(n)} bt
-                          </span>
-                          <div style={{ textAlign: 'right', minWidth: 0 }}>
-                            <p style={{ color: alpha(C.silver, 0.5), fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                              <Spiega
-                                k="ricavoProduttore"
-                                calcolo={incasso !== null
-                                  ? `€${eur(avgPAS)} × ${num(n)} bt × ${QUOTA_PCT} = €${eur(incasso)}`
-                                  : undefined}
-                              >
-                                Incassi tu
-                              </Spiega>
-                            </p>
-                            <p style={{ color: C.ocra, fontSize: '20px', fontWeight: 800, lineHeight: 1.2 }}>
-                              {incasso !== null ? `€ ${eur(incasso)}` : '—'}
-                            </p>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '6px 12px', marginTop: '6px' }}>
-                          <Spiega
-                            k="valoreGda"
-                            calcolo={`€${eur(avgPS)} × ${num(n)} bt = €${eur(valore)}`}
-                            style={{ color: alpha(C.silver, 0.5) }}
-                          >
-                            <span style={{ fontSize: '12px' }}>valore €{eur(valore)}</span>
-                          </Spiega>
-                          {quotaSiply !== null && fatturato !== null && (
-                            <Spiega
-                              k="commissioneSiply"
-                              calcolo={`€${eur(fatturato)} × ${COMMISSIONE_PCT} = €${eur(quotaSiply)}`}
-                              style={{ color: C.green }}
-                            >
-                              <span style={{ fontSize: '12px' }}>Siply €{eur(quotaSiply)}</span>
-                            </Spiega>
-                          )}
-                          {netto !== null && incasso !== null && (
-                            <Spiega
-                              k="margineNetto"
-                              calcolo={`€${eur(incasso)} − €${eur(costo)} = ${netto >= 0 ? '+' : ''}€${eur(netto)}`}
-                              style={{ color: netto >= 0 ? C.green : C.magenta }}
-                            >
-                              <span style={{ fontSize: '12px', fontWeight: 700, backgroundColor: alpha(netto >= 0 ? C.green : C.magenta, 0.15), padding: '2px 8px', borderRadius: '20px' }}>
-                                netto {netto >= 0 ? '+' : ''}€{eur(netto)}
-                              </span>
-                            </Spiega>
-                          )}
-                        </div>
-                      </motion.div>
-                    )
-                  })}
-                </AnimatePresence>
-
-                {(avgPAS === 0 || avgCP === 0) && (
-                  <p style={{ color: alpha(C.silver, 0.45), fontSize: '12.5px', marginTop: '10px', lineHeight: 1.45 }}>
-                    {avgPAS === 0
-                      ? 'Scrivi il prezzo acquisto Siply nel passo Dettagli per sapere quanto incassi.'
-                      : 'Scrivi il costo di produzione nel passo Dettagli per vedere anche quanto ti resta netto.'}
-                  </p>
-                )}
-              </div>
-            )
-          })()}
 
           <div style={{ backgroundColor: alpha(C.green, 0.1), borderRadius: '16px', padding: '16px', display: 'flex', gap: '12px' }}>
             <Icon.Campana size={22} />
@@ -1909,21 +1823,16 @@ function SpedizioneCard({ location, onLocation, note, onNote, conNote, compatto 
         <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>
           {compatto
             ? 'Controlla che sia giusta prima di inviare.'
-            : 'Indirizzo o città da cui spedisci il vino verso Siply.'}
+            : "Scrivi le prime lettere e scegli l'indirizzo dai suggerimenti."}
         </p>
-        <div style={{ position: 'relative' }}>
-          <svg style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', flexShrink: 0 }} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={location ? C.magenta : alpha(C.dark, 0.3)} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-            <circle cx="12" cy="9" r="2.5" />
-          </svg>
-          <input
-            type="text"
-            placeholder="es. Via Roma 12, Barolo (CN) — Piemonte"
-            value={location}
-            onChange={e => onLocation(e.target.value)}
-            style={{ width: '100%', backgroundColor: alpha(C.dark, 0.04), border: `1.5px solid ${location ? C.magenta : alpha(C.dark, 0.1)}`, borderRadius: '12px', padding: '13px 16px 13px 40px', color: C.dark, fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
-          />
-        </div>
+        {/* Suggerito, non battuto a mano: un indirizzo scelto da un elenco
+            arriva a noi sempre nella stessa forma, e chi compila fa meno
+            fatica. Vedi src/components/IndirizzoInput.tsx. */}
+        <IndirizzoInput
+          value={location}
+          onChange={onLocation}
+          placeholder="es. Via Roma 12, Barolo (CN)"
+        />
 
         {/* Dove arriva la merce: si dichiara qui, accanto a dove parte. */}
         <div style={{ marginTop: '12px', display: 'flex', gap: '10px', backgroundColor: alpha(C.ocra, 0.12), borderRadius: '12px', padding: '12px 14px' }}>
