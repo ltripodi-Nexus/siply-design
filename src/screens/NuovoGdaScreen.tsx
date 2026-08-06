@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { C, alpha } from '../colors'
 import { cassaTotale, type Cassa, type CassaBottiglia, type Gda, type GdaPayload } from '../App'
-import { COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, pct } from '../economia'
+import { COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, num, pct } from '../economia'
 import { WINES, FILTERS_INIT, applyFilters, activeFilterCount, type WineRich, type WineFilters } from '../data/wines'
 import WineFilterPanel from '../components/WineFilterPanel'
 import * as M from '../motion'
@@ -10,7 +10,9 @@ import * as Icon from '../components/Icons'
 import { scrollToFooter } from '../components/Footer'
 import Spiega from '../components/Spiega'
 import IndirizzoInput from '../components/IndirizzoInput'
-import { EsempioScala, RigaTraguardo, StrisciaCommissione, medieCasse } from '../components/ScalaTraguardi'
+import {
+  EsempioScala, ImpattoScala, RigaTraguardo, StrisciaCommissione, medieCasse, type Medie,
+} from '../components/ScalaTraguardi'
 import {
   MAX_TRAGUARDI, conId, normalizza, prossimoTraguardo, traguardoIncoerente, type Traguardo,
 } from '../traguardi'
@@ -45,7 +47,10 @@ function demoDraft(): Cassa {
 }
 
 type Step = 'gda' | 'vino' | 'dettagli' | 'riepilogo'
-const STEP_LABEL: Record<Step, string> = { gda: 'GDA', vino: 'Vino', dettagli: 'Dettagli', riepilogo: 'Riepilogo' }
+/* "Prezzi" e non più "Dettagli": in quel passo si decidono il prezzo del
+   gruppo e la scala degli sconti, che sono la stessa decisione presa da due
+   parti. Vedi il commento sulla vista unica, più sotto. */
+const STEP_LABEL: Record<Step, string> = { gda: 'GDA', vino: 'Vino', dettagli: 'Prezzi', riepilogo: 'Riepilogo' }
 
 export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, onAnnulla }: Props) {
   // una bozza ripresa è ancora tutta modificabile; un GDA già inviato no
@@ -156,6 +161,11 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
    *  scontare è una scelta del produttore, non una regola nostra. */
   const scalaRotta = useMemo(() => traguardoIncoerente(traguardi), [traguardi])
 
+  /** Nel riepilogo la scala si legge, non si tocca: si è già decisa insieme ai
+   *  prezzi. Resta però correggibile, perché con più casse dentro i numeri
+   *  cambiano e il produttore può volerla ritarare. */
+  const [modificaScala, setModificaScala] = useState(false)
+
   const setF = (p: Partial<WineFilters>) => setFilters(f => ({ ...f, ...p }))
   const nActive = activeFilterCount(filters)
   const allWines = useMemo(() => [...WINES, ...extraWines], [extraWines])
@@ -167,6 +177,39 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
   const selectedWines = useMemo(() => allWines.filter(w => (quantities[w.id] ?? 0) > 0), [allWines, quantities])
   const primaryWine = useMemo(() => selectedWines.length === 0 ? null : selectedWines.reduce((a, b) => (quantities[a.id] ?? 0) >= (quantities[b.id] ?? 0) ? a : b), [selectedWines, quantities])
   const totalPrice = useMemo(() => selectedWines.reduce((sum, w) => sum + w.prezzo * (quantities[w.id] ?? 0), 0), [selectedWines, quantities])
+
+  /* ── La vista unica: prezzi e traguardi insieme ──────────────────────────
+     La cassa in lavorazione non è ancora dentro `casseAggiunte` — ci finisce
+     solo confermandola — quindi finché se ne scrivono i prezzi non esiste per
+     nessun conto. Ma è proprio quello il momento in cui la scala serve: si
+     batte un prezzo e si vuole sapere subito cosa comporta ai traguardi.
+     Qui la cassa a metà viene contata come se fosse già dentro, così la scala
+     si muove sotto le dita mentre si scrive.
+     ───────────────────────────────────────────────────────────────────── */
+  const cassaInLavorazione = useMemo<Cassa | null>(() => {
+    if (!primaryWine) return null
+    return {
+      id: 'in-lavorazione',
+      nome: nome.trim() || primaryWine.nome,
+      bottiglia: primaryWine,
+      quantita: totalQty,
+      bottiglie: selectedWines.length > 1
+        ? selectedWines.map(w => ({ bottiglia: w, quantita: quantities[w.id] ?? 0 }))
+        : undefined,
+      prezziScontati,
+      costiUnitari,
+      costiScontati,
+    }
+  }, [primaryWine, selectedWines, quantities, nome, totalQty, prezziScontati, costiUnitari, costiScontati])
+
+  /** Le medie come saranno a cassa confermata: è su queste che il passo
+   *  "Prezzi" disegna la scala, ed è per questo che risponde subito. */
+  const medieLive = useMemo(
+    () => medieCasse(cassaInLavorazione
+      ? [...casseEsistenti, ...casseAggiunte, cassaInLavorazione]
+      : [...casseEsistenti, ...casseAggiunte]),
+    [casseEsistenti, casseAggiunte, cassaInLavorazione],
+  )
 
   /** Totale con i prezzi GDA: null finché non c'è almeno uno sconto valido. */
   const totalScontato = useMemo(() => {
@@ -853,44 +896,16 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                 )}
               </div>
 
-              {/* Il collegamento fra questo passo e la scala del riepilogo.
-                  Senza, questi prezzi sembrano l'ultima parola — e poi nel
-                  riepilogo ne compaiono altri, più bassi, senza spiegazione. */}
+              {/* Il collegamento fra il prezzo e la scala, che ora sta qui
+                  sotto: senza, questo prezzo sembra l'ultima parola, e poi
+                  più giù ne compaiono altri, più bassi, senza spiegazione. */}
               <div style={{ display: 'flex', gap: '10px', backgroundColor: alpha(C.magenta, 0.06), borderRadius: '12px', padding: '11px 13px', margin: '0 0 16px' }}>
                 <Icon.Bersaglio size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
                 <p style={{ color: C.dark, fontSize: '12px', lineHeight: 1.55 }}>
-                  Questo è il <strong>prezzo di partenza</strong>, quello del primo traguardo. Nel riepilogo fissi i traguardi successivi e decidi quanto scendere ancora se il gruppo compra di più.
+                  Questo è il <strong>prezzo di partenza</strong>, quello del primo traguardo. Qui sotto fissi i traguardi successivi: la scala si aggiorna mentre scrivi, e vedi subito quanto cambia.
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* Nome */}
-          <div style={{ backgroundColor: C.white, borderRadius: '20px', padding: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>Nome della cassa</label>
-            <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>Un nome che ti aiuti a riconoscerla subito.</p>
-            <input
-              type="text"
-              placeholder={selectedWines.length === 1 ? `${primaryWine.nome} ${primaryWine.annata}` : `Selezione mista · ${totalQty} bottiglie`}
-              value={nome}
-              onChange={e => setNome(e.target.value)}
-              style={{ width: '100%', backgroundColor: alpha(C.dark, 0.04), border: `1.5px solid ${nome ? C.magenta : alpha(C.dark, 0.1)}`, borderRadius: '12px', padding: '13px 16px', color: C.dark, fontSize: '15px', outline: 'none', transition: 'border-color 0.2s' }}
-            />
-          </div>
-
-          {/* Note */}
-          <div style={{ backgroundColor: C.white, borderRadius: '20px', padding: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>
-              Note per il team Siply <span style={{ color: C.gray, fontWeight: 400 }}>(opzionale)</span>
-            </label>
-            <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>Mercato di riferimento, stagionalità, caratteristiche particolari…</p>
-            <textarea
-              placeholder="es. Ottima per il mercato nordeuropeo, da abbinare a formaggi stagionati"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              rows={3}
-              style={{ width: '100%', backgroundColor: alpha(C.dark, 0.04), border: `1.5px solid ${note ? C.magenta : alpha(C.dark, 0.1)}`, borderRadius: '12px', padding: '13px 16px', color: C.dark, fontSize: '14px', outline: 'none', resize: 'none', lineHeight: 1.5, transition: 'border-color 0.2s' }}
-            />
           </div>
 
           {/* Dati economici & documenti */}
@@ -1042,6 +1057,23 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
             </div>
           </div>
 
+          {/* ── La scala, qui e non fra tre schermate ──
+              Sta subito sotto ai prezzi e ai costi da cui dipende, e legge le
+              medie della cassa in lavorazione: si corregge un prezzo e le
+              righe si muovono. È tutto il senso di averle messe insieme. */}
+          <SchedaTraguardi
+            traguardi={traguardi}
+            medie={medieLive}
+            scalaRotta={scalaRotta}
+            editabile
+            conEsempio
+            dovePrezzi="qui sopra"
+            onAggiungi={aggiungiTraguardo}
+            onCambia={cambiaTraguardo}
+            onRiordina={riordinaScala}
+            onRimuovi={id => setTraguardi(p => normalizza(p.filter(x => x.id !== id)))}
+          />
+
           {/* Riepilogo totali */}
           {(() => {
             const ricavoListino = totalPrice
@@ -1168,6 +1200,36 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
               </div>
             )
           })()}
+
+          {/* Nome e note vengono dopo i soldi: sono come si chiama la cassa,
+              non quanto vale. Prima si chiude il discorso prezzo-traguardi
+              senza interromperlo a metà con un campo di testo. */}
+          <div style={{ backgroundColor: C.white, borderRadius: '20px', padding: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>Nome della cassa</label>
+            <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>Un nome che ti aiuti a riconoscerla subito.</p>
+            <input
+              type="text"
+              placeholder={selectedWines.length === 1 ? `${primaryWine.nome} ${primaryWine.annata}` : `Selezione mista · ${totalQty} bottiglie`}
+              value={nome}
+              onChange={e => setNome(e.target.value)}
+              style={{ width: '100%', backgroundColor: alpha(C.dark, 0.04), border: `1.5px solid ${nome ? C.magenta : alpha(C.dark, 0.1)}`, borderRadius: '12px', padding: '13px 16px', color: C.dark, fontSize: '15px', outline: 'none', transition: 'border-color 0.2s' }}
+            />
+          </div>
+
+          {/* Note */}
+          <div style={{ backgroundColor: C.white, borderRadius: '20px', padding: '20px', boxShadow: '0 1px 6px rgba(0,0,0,0.05)' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>
+              Note per il team Siply <span style={{ color: C.gray, fontWeight: 400 }}>(opzionale)</span>
+            </label>
+            <p style={{ color: C.gray, fontSize: '12px', marginBottom: '12px' }}>Mercato di riferimento, stagionalità, caratteristiche particolari…</p>
+            <textarea
+              placeholder="es. Ottima per il mercato nordeuropeo, da abbinare a formaggi stagionati"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              rows={3}
+              style={{ width: '100%', backgroundColor: alpha(C.dark, 0.04), border: `1.5px solid ${note ? C.magenta : alpha(C.dark, 0.1)}`, borderRadius: '12px', padding: '13px 16px', color: C.dark, fontSize: '14px', outline: 'none', resize: 'none', lineHeight: 1.5, transition: 'border-color 0.2s' }}
+            />
+          </div>
 
           {/* Info */}
           <div style={{ backgroundColor: alpha(C.ocra, 0.12), borderRadius: '16px', padding: '16px', display: 'flex', gap: '12px' }}>
@@ -1304,95 +1366,31 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
             onNote={setNoteSpedizione}
           />
 
-          {/* ── Traguardi e sconti ──
-              Il patto con chi compra sta tutto in questa scheda: quante
-              bottiglie, quanto sconto, e cosa vuol dire in soldi. Prima erano
-              due schede separate — i numeri di bottiglie qui, la stima dei
-              ricavi più sotto — e il legame fra le due cose, che è poi il
-              punto, non si vedeva da nessuna parte. */}
-          <div style={{ backgroundColor: C.white, borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-            <div style={{ padding: '14px 20px', backgroundColor: alpha(C.dark, 0.03), borderBottom: `1px solid ${alpha(C.dark, 0.06)}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Icon.Bersaglio size={16} />
-              <p style={{ color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Traguardi e sconti</p>
-            </div>
-            <div style={{ padding: '16px 20px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>
-                <Spiega k="traguardi">Più il gruppo compra, meno paga</Spiega>
-              </label>
-              <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.55 }}>
-                Decidi quante bottiglie deve vendere il GDA e quanto scendi di prezzo a ogni scalino. Il primo traguardo si paga al prezzo che hai già messo sulle bottiglie; da lì in su lo sconto in più lo aggiungi tu. Fino a {MAX_TRAGUARDI} traguardi: aggiungili col pulsante e correggi i numeri sulla riga.
-              </p>
-
-              {/* L'esempio prima della scala: chi non ha mai visto come
-                  funziona lo trova sulla strada, senza doverlo cercare. */}
-              <EsempioScala />
-
-              {/* La scala, uno scalino per riga */}
-              {traguardi.length > 0 && (
-                <div style={{ marginTop: '6px' }}>
-                  <AnimatePresence initial={false}>
-                    {traguardi.map((t, i) => (
-                      <motion.div
-                        key={t.id ?? i} layout
-                        variants={M.V.item} initial="initial" animate="animate" exit="exit"
-                      >
-                        <RigaTraguardo
-                          indice={i}
-                          traguardo={t}
-                          medie={medie}
-                          incoerente={i === scalaRotta}
-                          onBottiglie={v => cambiaTraguardo(t.id, { bottiglie: v })}
-                          onSconto={v => cambiaTraguardo(t.id, { sconto: v })}
-                          onRiordina={riordinaScala}
-                          onRimuovi={() => setTraguardi(p => normalizza(p.filter(x => x.id !== t.id)))}
-                        />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-
-                  {medie.acquisto > 0 && <StrisciaCommissione />}
-
-                  {medie.bottiglie > 0 && (medie.acquisto === 0 || medie.costo === 0) && (
-                    <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.5, marginTop: '12px' }}>
-                      {medie.acquisto === 0
-                        ? 'Scrivi il prezzo acquisto Siply nel passo Dettagli per sapere quanto incassi a ogni traguardo.'
-                        : 'Scrivi il costo di produzione nel passo Dettagli per vedere anche quanto ti resta netto.'}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {traguardi.length === 0 && (
-                <p style={{ color: C.gray, fontSize: '12.5px', lineHeight: 1.55, backgroundColor: alpha(C.dark, 0.035), borderRadius: '12px', padding: '12px 14px', margin: '12px 0 0' }}>
-                  Nessun traguardo fissato. Senza una scala il gruppo compra al prezzo di partenza e basta: nessuno ha un motivo per aggiungere bottiglie.
-                </p>
-              )}
-
-              {/* Si aggiunge come si aggiunge una cassa: un bottone grande,
-                  lo stesso gesto e lo stesso disegno. Il traguardo nasce già
-                  proposto — bottiglie e sconto — e si corregge sulla riga. */}
-              {traguardi.length < MAX_TRAGUARDI && (
-                <M.Button
-                  onClick={aggiungiTraguardo}
-                  style={{
-                    width: '100%', backgroundColor: 'transparent', color: C.magenta,
-                    padding: '15px', borderRadius: '14px', fontSize: '14.5px', fontWeight: 700,
-                    border: `2px dashed ${alpha(C.magenta, 0.4)}`, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    marginTop: '14px',
-                  }}
-                >
-                  <span style={{ fontSize: '18px' }}>＋</span>
-                  {traguardi.length === 0 ? 'Aggiungi il primo traguardo' : 'Aggiungi un altro traguardo'}
-                </M.Button>
-              )}
-              {traguardi.length >= MAX_TRAGUARDI && (
-                <p style={{ color: C.gray, fontSize: '12px', marginTop: '14px' }}>
-                  Hai fissato {MAX_TRAGUARDI} traguardi: è il massimo. Togline uno per aggiungerne un altro.
-                </p>
-              )}
-            </div>
-          </div>
+          {/* ── Traguardi e sconti, riletti ──
+              Qui la scala si è già decisa: si è fissata nel passo "Prezzi",
+              accanto ai prezzi da cui dipende. Nel riepilogo si rilegge — con
+              i numeri aggiornati a tutte le casse che ora ci sono dentro — e
+              si corregge solo se serve, premendo "Modifica". */}
+          <SchedaTraguardi
+            traguardi={traguardi}
+            medie={medie}
+            scalaRotta={scalaRotta}
+            editabile={modificaScala || traguardi.length === 0}
+            conEsempio={traguardi.length === 0}
+            dovePrezzi="nel passo Prezzi"
+            azione={traguardi.length > 0 && (
+              <M.Button
+                onClick={() => setModificaScala(m => !m)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.magenta, fontSize: '12px', fontWeight: 700 }}
+              >
+                {modificaScala ? 'Fatto' : 'Modifica'}
+              </M.Button>
+            )}
+            onAggiungi={aggiungiTraguardo}
+            onCambia={cambiaTraguardo}
+            onRiordina={riordinaScala}
+            onRimuovi={id => setTraguardi(p => normalizza(p.filter(x => x.id !== id)))}
+          />
 
           <div style={{ backgroundColor: alpha(C.green, 0.1), borderRadius: '16px', padding: '16px', display: 'flex', gap: '12px' }}>
             <Icon.Campana size={22} />
@@ -1499,6 +1497,142 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
         .num-clean::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .num-clean { -moz-appearance: textfield; appearance: textfield; }
       `}</style>
+    </div>
+  )
+}
+
+/* ── La scheda dei traguardi ───────────────────────────────────────────────
+   Una scheda sola, usata in due posti: nel passo "Prezzi", subito sotto ai
+   campi del prezzo, dove si decide; e nel riepilogo, dove si rilegge.
+
+   Stavano su due schermate diverse — il prezzo in "Dettagli", la scala nel
+   riepilogo — e in mezzo c'erano tre schede e un cambio di passo. Il
+   produttore batteva un prezzo senza sapere cosa ci avrebbe fatto sopra, e
+   fissava i traguardi quando ormai il prezzo era una cosa decisa altrove.
+   Che poi sono la stessa decisione: quanto costa una bottiglia dipende da
+   quante ne vende il gruppo, ed è quello il patto.
+
+   Insieme, un prezzo battuto muove la scala mentre lo si scrive.
+   ───────────────────────────────────────────────────────────────────────── */
+function SchedaTraguardi({ traguardi, medie, scalaRotta, editabile, conEsempio, dovePrezzi, azione, onAggiungi, onCambia, onRiordina, onRimuovi }: {
+  traguardi: Traguardo[]
+  medie: Medie
+  /** indice del primo scalino che non sale, o -1 */
+  scalaRotta: number
+  /** i comandi ci sono o la scala si legge e basta */
+  editabile: boolean
+  /** dove sono i campi dei prezzi rispetto a questa scheda: "qui sopra" nel
+   *  passo Prezzi, "nel passo Prezzi" quando la scheda sta nel riepilogo */
+  dovePrezzi: string
+  /** l'esempio guidato: serve dove si compila, non dove si rilegge */
+  conEsempio?: boolean
+  /** bottone in testata, es. "Modifica" nel riepilogo */
+  azione?: React.ReactNode
+  onAggiungi: () => void
+  onCambia: (id: string | undefined, dati: Partial<Traguardo>) => void
+  onRiordina: () => void
+  onRimuovi: (id: string | undefined) => void
+}) {
+  const vuota = traguardi.length === 0
+  return (
+    <div style={{ backgroundColor: C.white, borderRadius: '20px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+      <div style={{ padding: '14px 20px', backgroundColor: alpha(C.dark, 0.03), borderBottom: `1px solid ${alpha(C.dark, 0.06)}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <Icon.Bersaglio size={16} />
+        <p style={{ flex: 1, color: alpha(C.dark, 0.45), fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+          Traguardi e sconti
+        </p>
+        {azione}
+      </div>
+      <div style={{ padding: '16px 20px' }}>
+        {editabile ? (
+          <>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: C.dark, marginBottom: '4px' }}>
+              <Spiega k="traguardi">Più il gruppo compra, meno paga</Spiega>
+            </label>
+            <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.55 }}>
+              Decidi quante bottiglie deve vendere il GDA e quanto scendi di prezzo a ogni scalino. Il primo traguardo si paga al prezzo che hai appena scritto sulle bottiglie; da lì in su lo sconto in più lo aggiungi tu. Fino a {MAX_TRAGUARDI} traguardi: aggiungili col pulsante e correggi i numeri sulla riga.
+            </p>
+          </>
+        ) : (
+          <p style={{ color: C.gray, fontSize: '12.5px', lineHeight: 1.55 }}>
+            {vuota
+              ? 'Nessun traguardo fissato.'
+              : `La scala vale su tutto il GDA: ${traguardi.length} traguard${traguardi.length === 1 ? 'o' : 'i'}, da ${num(traguardi[0].bottiglie)} a ${num(traguardi[traguardi.length - 1].bottiglie)} bottiglie.`}
+          </p>
+        )}
+
+        {/* L'esempio prima della scala: chi non ha mai visto come funziona lo
+            trova sulla strada, senza doverlo cercare. */}
+        {conEsempio && <EsempioScala />}
+
+        {/* Il confronto fra i due estremi: è la ragione per cui una scala
+            conviene, e sta sopra alle righe perché è la conclusione. */}
+        <ImpattoScala traguardi={traguardi} medie={medie} />
+
+        {!vuota && (
+          <div style={{ marginTop: '6px' }}>
+            <AnimatePresence initial={false}>
+              {traguardi.map((t, i) => (
+                <motion.div
+                  key={t.id ?? i} layout
+                  variants={M.V.item} initial="initial" animate="animate" exit="exit"
+                >
+                  <RigaTraguardo
+                    indice={i}
+                    traguardo={t}
+                    medie={medie}
+                    incoerente={i === scalaRotta}
+                    onBottiglie={editabile ? v => onCambia(t.id, { bottiglie: v }) : undefined}
+                    onSconto={editabile ? v => onCambia(t.id, { sconto: v }) : undefined}
+                    onRiordina={editabile ? onRiordina : undefined}
+                    onRimuovi={editabile ? () => onRimuovi(t.id) : undefined}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {medie.acquisto > 0 && <StrisciaCommissione />}
+
+            {medie.bottiglie > 0 && (medie.acquisto === 0 || medie.costo === 0) && (
+              <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.5, marginTop: '12px' }}>
+                {medie.acquisto === 0
+                  ? `Scrivi il prezzo acquisto Siply ${dovePrezzi} per sapere quanto incassi a ogni traguardo.`
+                  : `Scrivi il costo di produzione ${dovePrezzi} per vedere anche quanto ti resta netto.`}
+              </p>
+            )}
+          </div>
+        )}
+
+        {vuota && editabile && (
+          <p style={{ color: C.gray, fontSize: '12.5px', lineHeight: 1.55, backgroundColor: alpha(C.dark, 0.035), borderRadius: '12px', padding: '12px 14px', margin: '12px 0 0' }}>
+            Nessun traguardo fissato. Senza una scala il gruppo compra al prezzo di partenza e basta: nessuno ha un motivo per aggiungere bottiglie.
+          </p>
+        )}
+
+        {/* Si aggiunge come si aggiunge una cassa: un bottone grande, lo stesso
+            gesto e lo stesso disegno. Il traguardo nasce già proposto —
+            bottiglie e sconto — e si corregge sulla riga. */}
+        {editabile && traguardi.length < MAX_TRAGUARDI && (
+          <M.Button
+            onClick={onAggiungi}
+            style={{
+              width: '100%', backgroundColor: 'transparent', color: C.magenta,
+              padding: '15px', borderRadius: '14px', fontSize: '14.5px', fontWeight: 700,
+              border: `2px dashed ${alpha(C.magenta, 0.4)}`, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              marginTop: '14px',
+            }}
+          >
+            <span style={{ fontSize: '18px' }}>＋</span>
+            {vuota ? 'Aggiungi il primo traguardo' : 'Aggiungi un altro traguardo'}
+          </M.Button>
+        )}
+        {editabile && traguardi.length >= MAX_TRAGUARDI && (
+          <p style={{ color: C.gray, fontSize: '12px', marginTop: '14px' }}>
+            Hai fissato {MAX_TRAGUARDI} traguardi: è il massimo. Togline uno per aggiungerne un altro.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

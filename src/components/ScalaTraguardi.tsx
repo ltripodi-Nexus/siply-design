@@ -399,15 +399,155 @@ function StepperSconto({ valore, onCambia }: { valore: number; onCambia: (v: num
   )
 }
 
+/* ── Cosa cambia dal primo all'ultimo traguardo ────────────────────────────
+   Riga per riga si legge cosa succede a ogni scalino, ma non si legge la cosa
+   che conta: che il prezzo scende di poco e l'incasso sale di molto. È la
+   frase che convince a fissare una scala invece di un prezzo solo, e finché
+   bisogna ricavarla confrontando due righe distanti nessuno la ricava.
+
+   Qui i due estremi stanno uno sopra l'altro, con le barre lunghe quanto i
+   soldi che portano. La differenza si vede prima di leggerla.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** Moltiplicatore leggibile: "4" quando è tondo, "3,6" quando non lo è. */
+const volteTxt = (v: number) => (Math.abs(v - Math.round(v)) < 0.05 ? num(Math.round(v)) : pct(v))
+
+export function ImpattoScala({ traguardi, medie: m }: { traguardi: Traguardo[]; medie: Medie }) {
+  // Con un traguardo solo non c'è nessun "da … a …" da raccontare, e senza
+  // prezzi scritti non ci sono numeri da confrontare.
+  if (traguardi.length < 2 || m.bottiglie === 0 || m.listino === 0) return null
+
+  const tPrimo = traguardi[0]
+  const tUltimo = traguardi[traguardi.length - 1]
+  const primo = contiTraguardo(tPrimo, m)
+  const ultimo = contiTraguardo(tUltimo, m)
+
+  /* Si confronta quello che entra in tasca al produttore. Finché non ha
+     scritto il prezzo a cui vende a Siply quel numero non esiste: allora si
+     confronta quanto spende il gruppo. Cambia l'etichetta, non il discorso. */
+  const suIncasso = primo.incasso !== null && ultimo.incasso !== null && primo.incasso > 0
+  const aPrimo = suIncasso ? primo.incasso! : primo.valore
+  const aUltimo = suIncasso ? ultimo.incasso! : ultimo.valore
+  const massimo = Math.max(aPrimo, aUltimo, 1)
+  const volte = aPrimo > 0 ? aUltimo / aPrimo : 0
+  const volteBottiglie = tPrimo.bottiglie > 0 ? tUltimo.bottiglie / tPrimo.bottiglie : 0
+  const puntiInPiu = ultimo.sconto - primo.sconto
+  const etichettaSoldi = suIncasso ? 'quanto incassi tu' : 'quanto spende il gruppo'
+
+  return (
+    <div style={{ backgroundColor: C.dark, borderRadius: '16px', padding: '15px 16px', margin: '14px 0 4px' }}>
+      {/* Il tratto dell'icona è scuro di suo e su questo fondo sparirebbe:
+          qui prende il colore dell'etichetta che accompagna. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '2px' }}>
+        <Icon.Trend size={16} color={alpha(C.silver, 0.55)} />
+        <p style={{ color: alpha(C.silver, 0.55), fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+          Cosa cambia con la scala
+        </p>
+      </div>
+      {/* Cosa misurano le barre: senza, sono due lunghezze e basta. */}
+      <p style={{ color: alpha(C.silver, 0.38), fontSize: '10.5px', fontWeight: 600, marginBottom: '13px', paddingLeft: '23px' }}>
+        lunghezza delle barre: {etichettaSoldi}
+      </p>
+
+      <Confronto
+        etichetta="Primo traguardo"
+        bottiglie={tPrimo.bottiglie}
+        prezzo={primo.prezzo}
+        sconto={primo.sconto}
+        soldi={aPrimo}
+        quota={aPrimo / massimo}
+      />
+      <Confronto
+        forte
+        etichetta="Ultimo traguardo"
+        bottiglie={tUltimo.bottiglie}
+        prezzo={ultimo.prezzo}
+        sconto={ultimo.sconto}
+        soldi={aUltimo}
+        quota={aUltimo / massimo}
+      />
+
+      <p style={{ color: alpha(C.silver, 0.75), fontSize: '12px', lineHeight: 1.6, marginTop: '13px', paddingTop: '12px', borderTop: `1px solid ${alpha(C.white, 0.1)}` }}>
+        {puntiInPiu > 0 ? (
+          <>
+            La bottiglia scende da €{eur(primo.prezzo)} a €{eur(ultimo.prezzo)}: sconti{' '}
+            <strong style={{ color: C.bg, fontWeight: 700 }}>{puntiInPiu} punti in più</strong> sul listino, ma vendi{' '}
+            <strong style={{ color: C.bg, fontWeight: 700 }}>{volteTxt(volteBottiglie)} volte</strong> le bottiglie —{' '}
+            {suIncasso ? (
+              <><strong style={{ color: C.ocra, fontWeight: 800 }}>{volteTxt(volte)} volte di più</strong> in tasca.</>
+            ) : (
+              <>il gruppo spende <strong style={{ color: C.ocra, fontWeight: 800 }}>{volteTxt(volte)} volte di più</strong>.</>
+            )}
+          </>
+        ) : (
+          <>
+            Il prezzo non scende salendo di traguardo: chi compra paga €{eur(ultimo.prezzo)} a bottiglia
+            comunque, quindi nessuno ha un motivo per arrivare fino in fondo. Aggiungi uno sconto in più
+            ai traguardi grandi.
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
+/** Un estremo della scala: i suoi numeri e una barra lunga quanto i suoi soldi. */
+function Confronto({ etichetta, bottiglie, prezzo, sconto, soldi, quota, forte }: {
+  etichetta: string
+  bottiglie: number
+  prezzo: number
+  sconto: number
+  soldi: number
+  /** frazione della barra più lunga, da 0 a 1 */
+  quota: number
+  /** il traguardo grande: si scrive più forte, perché è lì che si vuole arrivare */
+  forte?: boolean
+}) {
+  return (
+    <div style={{ marginTop: forte ? '12px' : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
+        <span style={{ color: forte ? alpha(C.silver, 0.8) : alpha(C.silver, 0.45), fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {etichetta}
+        </span>
+        <span style={{ color: forte ? C.bg : alpha(C.silver, 0.7), fontSize: '13px', fontWeight: 800 }}>
+          {num(bottiglie)} bt
+        </span>
+        <span style={{ marginLeft: 'auto', color: forte ? C.bg : alpha(C.silver, 0.7), fontSize: '13px', fontWeight: 800 }}>
+          €{eur(prezzo)}
+          <span style={{ color: alpha(C.silver, 0.45), fontSize: '10px', fontWeight: 600 }}>/bt</span>
+        </span>
+        <span style={{ color: C.bg, fontSize: '10.5px', fontWeight: 700, backgroundColor: alpha(C.green, 0.35), borderRadius: '20px', padding: '2px 7px' }}>
+          −{sconto}%
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+        <div style={{ flex: 1, minWidth: 0, height: '10px', borderRadius: '5px', backgroundColor: alpha(C.white, 0.07), overflow: 'hidden' }}>
+          <motion.div
+            initial={false}
+            animate={{ width: `${Math.min(100, Math.max(0, quota * 100))}%` }}
+            transition={M.T.press}
+            style={{ height: '100%', borderRadius: '5px', backgroundColor: forte ? C.ocra : alpha(C.silver, 0.28) }}
+          />
+        </div>
+        <span style={{ flexShrink: 0, color: forte ? C.ocra : alpha(C.silver, 0.7), fontSize: forte ? '16px' : '13px', fontWeight: 800, lineHeight: 1 }}>
+          €{eur(soldi)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 /* ── La scala in sola lettura ─────────────────────────────────────────────
    Per il dettaglio del GDA e per chi in Siply legge la richiesta: gli stessi
-   numeri che ha visto il produttore mentre li decideva. */
+   numeri che ha visto il produttore mentre li decideva, compreso il confronto
+   fra i due estremi. */
 
 export function ScalaTraguardi({ traguardi, casse }: { traguardi: Traguardo[]; casse: Cassa[] }) {
   const medie = medieCasse(casse)
   if (traguardi.length === 0) return null
   return (
     <div>
+      <ImpattoScala traguardi={traguardi} medie={medie} />
       {traguardi.map((t, i) => (
         <RigaTraguardo key={`${t.bottiglie}-${i}`} indice={i} traguardo={t} medie={medie} />
       ))}
