@@ -21,9 +21,11 @@ import { motion, AnimatePresence } from '../motion'
         `VITE_GOOGLE_MAPS_API_KEY=...`, con "Places API (New)" attiva sul
         progetto Google Cloud. È la sorgente migliore, e si paga a chiamata.
      2. Photon, il motore di ricerca di OpenStreetMap: indirizzi veri di tutta
-        Italia, nessuna chiave, gratuito. È quello che risponde adesso sul sito
+        Europa, nessuna chiave, gratuito. È quello che risponde adesso sul sito
         pubblicato, ed è nato apposta per i campi che suggeriscono mentre
-        scrivi. Per volumi seri conviene ospitarselo o passare a Google.
+        scrivi. Risponde in mezzo secondo scarso invece che all'istante, e per
+        questo mentre cerca il menù mostra che sta cercando. Per volumi seri
+        conviene ospitarselo o passare a Google.
      3. Una manciata di indirizzi scritti qui sotto, buoni solo se la rete non
         risponde: senza, il campo resterebbe muto proprio mentre lo si prova.
 
@@ -72,7 +74,8 @@ function caricaGoogle(): Promise<unknown> {
  * Chiede i suggerimenti a Google. Prima con l'API nuova
  * (`AutocompleteSuggestion`), che è quella supportata; se la libreria caricata
  * è più vecchia si ripiega su `AutocompleteService`, che fa la stessa cosa con
- * la forma di prima. Ristretto all'Italia: le nostre cantine stanno lì.
+ * la forma di prima. Nessun paese imposto: i produttori europei esistono, e
+ * l'elenco lo restringe già quello che si sta scrivendo.
  */
 async function chiediAGoogle(q: string, token: unknown): Promise<Suggerimento[]> {
   const g = (await caricaGoogle()) as any
@@ -84,7 +87,6 @@ async function chiediAGoogle(q: string, token: unknown): Promise<Suggerimento[]>
       input: q,
       language: 'it',
       region: 'it',
-      includedRegionCodes: ['it'],
       sessionToken: token,
     })
     return (suggestions ?? [])
@@ -102,7 +104,7 @@ async function chiediAGoogle(q: string, token: unknown): Promise<Suggerimento[]>
     const servizio = new places.AutocompleteService()
     const previsioni: any[] = await new Promise(risolvi => {
       servizio.getPlacePredictions(
-        { input: q, componentRestrictions: { country: 'it' }, sessionToken: token },
+        { input: q, sessionToken: token },
         (r: any[] | null) => risolvi(r ?? []),
       )
     })
@@ -119,16 +121,20 @@ async function chiediAGoogle(q: string, token: unknown): Promise<Suggerimento[]>
 
 /* ── OpenStreetMap, senza chiave ─────────────────────────────────────────── */
 
-/** Riquadro che tiene dentro l'Italia isole comprese: Photon cerca in tutto il
- *  mondo, e senza limiti una "via Roma" tira su mezza Europa. */
-const ITALIA = '6.6,35.2,18.8,47.2'
+/** Riquadro dell'Europa, da Capo San Vincenzo al Baltico e da Malta a Capo
+ *  Nord. Photon cerca in tutto il mondo: senza recinto una "via Roma" tira su
+ *  anche il Sudamerica, e nessuna cantina spedisce da lì. */
+const EUROPA = '-25,33,45,72'
 
-/** Le righe come le scrive Photon: via e civico sopra, dove sta sotto. */
+/** Le righe come le scrive Photon: via e civico sopra, dove sta sotto. Il
+ *  paese si scrive solo se non è l'Italia — "Montalcino, Italia" è rumore,
+ *  "Deidesheim, Deutschland" invece è l'informazione che serve. */
 function daPhoton(f: any): Suggerimento | null {
   const p = f?.properties
-  if (!p || p.countrycode !== 'IT') return null
+  if (!p) return null
   const via = [p.street ?? p.name, p.housenumber].filter(Boolean).join(' ')
-  const dove = [p.postcode, p.city ?? p.county, p.state].filter(Boolean).join(', ')
+  const dove = [p.postcode, p.city ?? p.county, p.state, p.countrycode === 'IT' ? null : p.country]
+    .filter(Boolean).join(', ')
   if (!via) return null
   return {
     id: `${p.osm_type ?? ''}${p.osm_id ?? via}`,
@@ -142,7 +148,7 @@ function daPhoton(f: any): Suggerimento | null {
    una lingua che non conosce risponde 400. Il valore di default sono i nomi
    come stanno scritti sul posto — in Italia, in italiano. */
 async function chiediAOsm(q: string, segnale: AbortSignal): Promise<Suggerimento[]> {
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&bbox=${ITALIA}`
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&bbox=${EUROPA}`
   const r = await fetch(url, { signal: segnale })
   if (!r.ok) throw new Error(`Photon ha risposto ${r.status}`)
   const dati = await r.json()
@@ -237,6 +243,24 @@ function Evidenzia({ testo, query }: { testo: string; query: string }) {
   )
 }
 
+/* ── Il segno che sta lavorando ──────────────────────────────────────────── */
+
+/** Un cerchio che gira: mezzo secondo di attesa senza niente sullo schermo si
+ *  legge come un campo che non funziona. */
+function Giracchio() {
+  return (
+    <motion.svg
+      width="15" height="15" viewBox="0 0 24 24" fill="none"
+      animate={{ rotate: 360 }}
+      transition={{ duration: 0.85, repeat: Infinity, ease: 'linear' }}
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx="12" cy="12" r="9" stroke={alpha(C.dark, 0.12)} strokeWidth={3} />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke={C.magenta} strokeWidth={3} strokeLinecap="round" />
+    </motion.svg>
+  )
+}
+
 /* ── Componente ──────────────────────────────────────────────────────────── */
 
 export default function IndirizzoInput({ value, onChange, placeholder, style }: {
@@ -250,6 +274,10 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
   const [attivo, setAttivo] = useState(-1)
   /** Chi ha risposto per ultimo: la coda del menù lo scrive. */
   const [sorgente, setSorgente] = useState<Sorgente>('esempi')
+  /** Una richiesta è in volo. OpenStreetMap ci mette qualche decimo di secondo:
+   *  senza dirlo, il campo sembrerebbe rotto proprio nell'attimo in cui sta
+   *  lavorando, e si ricomincerebbe a scrivere sopra. */
+  const [cercando, setCercando] = useState(false)
   const [riquadro, setRiquadro] = useState<{ left: number; top: number; width: number } | null>(null)
 
   const boxRef = useRef<HTMLDivElement>(null)
@@ -318,11 +346,15 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
   const cerca = (q: string) => {
     if (attesa.current !== null) clearTimeout(attesa.current)
     annullaRichiesta()
-    if (q.trim().length < 3) { setVoci([]); setAperto(false); return }
+    if (q.trim().length < 3) { setVoci([]); setCercando(false); setAperto(false); return }
     const mio = ++giro.current
     attesa.current = window.setTimeout(async () => {
       const controllo = new AbortController()
       richiesta.current = controllo
+      // il menù si apre subito col suo giracchio: l'attesa si vede, e chi
+      // scrive sa che deve solo aspettare invece di riprovare
+      setCercando(true)
+      setAperto(true)
 
       let risultati: Suggerimento[] = []
       let chi: Sorgente = 'esempi'
@@ -344,7 +376,8 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
           chi = 'osm'
         } catch (e) {
           // Una ricerca annullata perché ne è partita una nuova non è un
-          // errore: lasciare il posto a quella dopo è proprio il suo mestiere.
+          // errore: lasciare il posto a quella dopo è proprio il suo mestiere,
+          // e il loader lo spegnerà lei quando avrà finito.
           if ((e as Error)?.name === 'AbortError') return
           risultati = cercaNegliEsempi(q)
           chi = 'esempi'
@@ -355,7 +388,8 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
       setSorgente(chi)
       setVoci(risultati)
       setAttivo(-1)
-      setAperto(risultati.length > 0)
+      setCercando(false)
+      setAperto(true)                           // anche a mani vuote: va detto
     }, 220)
   }
 
@@ -363,6 +397,7 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
     onChange(s.testo)
     setAperto(false)
     setVoci([])
+    setCercando(false)
     annullaRichiesta()
     token.current = null                        // indirizzo scelto: sessione chiusa
   }
@@ -396,7 +431,7 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
         placeholder={placeholder}
         value={value}
         onChange={e => { onChange(e.target.value); cerca(e.target.value) }}
-        onFocus={() => { if (voci.length > 0) setAperto(true) }}
+        onFocus={() => { if (voci.length > 0 || cercando) setAperto(true) }}
         onKeyDown={tasti}
         style={{
           width: '100%', backgroundColor: alpha(C.dark, 0.04),
@@ -409,7 +444,11 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
 
       {createPortal(
         <AnimatePresence>
-          {aperto && riquadro && voci.length > 0 && (
+          {/* Aperto anche a mani vuote: una ricerca finita male deve dirlo,
+              se no il menù sparisce e sembra che il campo abbia ignorato. Il
+              controllo sulle tre lettere tiene fuori il caso in cui nessuna
+              ricerca sia mai partita. */}
+          {aperto && riquadro && (voci.length > 0 || cercando || value.trim().length >= 3) && (
             <motion.div
               key="sugg"
               className="siply-suggerimenti"
@@ -432,6 +471,25 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
                 overflow: 'hidden',
               }}
             >
+              {/* Prima riga: sta cercando. Resta in cima anche quando i primi
+                  risultati sono già arrivati da un'altra sorgente, così non
+                  sembra che l'elenco sia quello definitivo. */}
+              {cercando && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: voci.length > 0 ? `1px solid ${alpha(C.dark, 0.06)}` : 'none' }}>
+                  <Giracchio />
+                  <span style={{ color: C.gray, fontSize: '13px', fontWeight: 600 }}>Cerco l'indirizzo…</span>
+                </div>
+              )}
+
+              {!cercando && voci.length === 0 && (
+                <div style={{ padding: '13px 14px' }}>
+                  <p style={{ color: C.dark, fontSize: '13px', fontWeight: 600 }}>Nessun indirizzo trovato</p>
+                  <p style={{ color: C.gray, fontSize: '12px', marginTop: '2px', lineHeight: 1.45 }}>
+                    Prova col nome della via e del comune, o scrivi l'indirizzo a mano: va bene lo stesso.
+                  </p>
+                </div>
+              )}
+
               {voci.map((s, i) => (
                 <M.RowButton
                   key={s.id || i}
@@ -470,6 +528,7 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
 
               {/* Chi risponde va detto: è una richiesta di Google quando i dati
                   sono suoi, ed è onestà quando invece sono i nostri esempi. */}
+              {voci.length > 0 && (
               <div style={{ padding: '7px 14px', backgroundColor: alpha(C.dark, 0.035), borderTop: `1px solid ${alpha(C.dark, 0.06)}` }}>
                 <p style={{ color: alpha(C.dark, 0.4), fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.02em' }}>
                   {sorgente === 'google' ? 'powered by Google'
@@ -477,6 +536,7 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
                     : 'Indirizzi di esempio · la ricerca non risponde'}
                 </p>
               </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>,
