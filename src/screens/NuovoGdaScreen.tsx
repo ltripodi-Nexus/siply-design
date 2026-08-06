@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { C, alpha } from '../colors'
 import { cassaTotale, type Cassa, type CassaBottiglia, type Gda, type GdaPayload } from '../App'
-import { COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, num, pct } from '../economia'
+import { COMMISSIONE_PCT, QUOTA_PCT, alProduttore, commissione, eur, pct } from '../economia'
 import { WINES, FILTERS_INIT, applyFilters, activeFilterCount, type WineRich, type WineFilters } from '../data/wines'
 import WineFilterPanel from '../components/WineFilterPanel'
 import * as M from '../motion'
@@ -12,7 +12,7 @@ import Spiega from '../components/Spiega'
 import IndirizzoInput from '../components/IndirizzoInput'
 import { EsempioScala, RigaTraguardo, StrisciaCommissione, medieCasse } from '../components/ScalaTraguardi'
 import {
-  MAX_BOTTIGLIE, MAX_TRAGUARDI, normalizza, traguardoIncoerente, type Traguardo,
+  MAX_TRAGUARDI, conId, normalizza, prossimoTraguardo, traguardoIncoerente, type Traguardo,
 } from '../traguardi'
 import { useDemo, DEMO_CASSA, demoListino } from '../demo'
 
@@ -23,13 +23,6 @@ interface Props {
   /** chiamata uscendo senza inviare: quello che c'è viene salvato come bozza */
   onBozza: (gdaId: string | null, dati: GdaPayload) => void
   onAnnulla: () => void
-}
-
-function clampTraguardo(v: string): string {
-  if (v === '') return ''
-  const n = parseInt(v)
-  if (isNaN(n)) return ''
-  return String(Math.min(Math.max(n, 0), MAX_BOTTIGLIE))
 }
 
 /** Cassa finta già presente nel GDA, usata solo dal pulsante Demo. */
@@ -92,9 +85,9 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
   // e non vengono azzerati quando si passa alla cassa successiva.
   const [locationSpedizione, setLocationSpedizione] = useState(gdaTarget?.locationSpedizione ?? '')
   const [noteSpedizione, setNoteSpedizione] = useState(gdaTarget?.noteSpedizione ?? '')
-  /** Sempre ordinati e senza doppioni: ci pensa `aggiungiTraguardo`. */
-  const [traguardi, setTraguardi] = useState<Traguardo[]>(gdaTarget?.traguardi ?? [])
-  const [nuovoTraguardo, setNuovoTraguardo] = useState('')
+  /** Sempre in ordine di bottiglie: ci pensa `normalizza`. Gli id arrivano
+   *  anche alle righe che vengono da una bozza, che qui si possono modificare. */
+  const [traguardi, setTraguardi] = useState<Traguardo[]>(() => conId(gdaTarget?.traguardi ?? []))
 
   useDemo(mode => {
     if (mode === 'clear') {
@@ -112,7 +105,6 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
       setLocationSpedizione(gdaTarget?.locationSpedizione ?? '')
       setNoteSpedizione(gdaTarget?.noteSpedizione ?? '')
       setTraguardi([])
-      setNuovoTraguardo('')
       return
     }
     if (!aggiunta) setGdaNome(DEMO_CASSA.gdaNome)
@@ -125,31 +117,24 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     setListinoPdf(demoListino())
     setLocationSpedizione(DEMO_CASSA.locationSpedizione)
     setNoteSpedizione(DEMO_CASSA.noteSpedizione)
-    setTraguardi(DEMO_CASSA.traguardi)
+    setTraguardi(conId(DEMO_CASSA.traguardi))
     // una cassa già dentro il GDA, così il riepilogo non è vuoto e si vede
     // il caso multi-cassa: quella in lavorazione diventerà la seconda
     if (!aggiunta) setCasseAggiunte([demoDraft()])
   })
 
-  /** Aggiunge un traguardo tenendo la scala ordinata e senza doppioni: due
-   *  volte lo stesso numero non vuol dire niente, e uno più piccolo scritto
-   *  dopo va comunque letto prima. Lo sconto parte da quello del traguardo che
-   *  lo precede: una scala che scende sarebbe un errore, e proporla come punto
-   *  di partenza sarebbe peggio. */
-  const aggiungiTraguardo = () => {
-    const n = parseInt(nuovoTraguardo)
-    if (isNaN(n) || n <= 0) return
-    setTraguardi(p => {
-      if (p.length >= MAX_TRAGUARDI || p.some(t => t.bottiglie === n)) return p
-      const precedente = [...p].sort((a, b) => a.bottiglie - b.bottiglie).filter(t => t.bottiglie < n).pop()
-      return normalizza([...p, { bottiglie: n, sconto: precedente ? precedente.sconto : 0 }])
-    })
-    setNuovoTraguardo('')
-  }
+  /** Aggiunge uno scalino già proposto — bottiglie e sconto — da correggere
+   *  sul posto. Un traguardo vuoto da riempire sarebbe un modulo; uno pieno da
+   *  ritoccare è una proposta, e si capisce subito guardando i numeri sotto. */
+  const aggiungiTraguardo = () =>
+    setTraguardi(p => p.length >= MAX_TRAGUARDI ? p : normalizza([...p, prossimoTraguardo(p)]))
 
-  /** Cambia lo sconto di un traguardo, lasciando intatti gli altri. */
-  const cambiaSconto = (bottiglie: number, sconto: number) =>
-    setTraguardi(p => normalizza(p.map(t => t.bottiglie === bottiglie ? { ...t, sconto } : t)))
+  /** Modifica una riga per identità e non per posizione: mentre si scrivono le
+   *  bottiglie la scala resta ferma, e si riordina solo uscendo dal campo. */
+  const cambiaTraguardo = (id: string | undefined, dati: Partial<Traguardo>) =>
+    setTraguardi(p => p.map(t => t.id === id ? { ...t, ...dati } : t))
+
+  const riordinaScala = () => setTraguardi(p => normalizza(p))
 
   const gdaPronto = gdaNome.trim().length > 0
   // le casse di un GDA già inviato si vedono ma non si toccano; quelle di una
@@ -159,7 +144,6 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
     () => casseEsistenti.reduce((s, c) => s + c.quantita, 0) + casseAggiunte.reduce((s, c) => s + c.quantita, 0),
     [casseEsistenti, casseAggiunte],
   )
-  const traguardoLimitato = parseInt(nuovoTraguardo) === MAX_BOTTIGLIE
 
   /* Le medie su cui poggia tutta la scala. Un traguardo vale sull'intero GDA,
      quindi si contano insieme le casse già dentro e quelle appena aggiunte:
@@ -1336,7 +1320,7 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                 <Spiega k="traguardi">Più il gruppo compra, meno paga</Spiega>
               </label>
               <p style={{ color: C.gray, fontSize: '12px', lineHeight: 1.55 }}>
-                Decidi quante bottiglie deve vendere il GDA e quanto scendi di prezzo a ogni scalino. Il primo traguardo si paga al prezzo che hai già messo sulle bottiglie; da lì in su lo sconto in più lo aggiungi tu. Fino a {MAX_TRAGUARDI} traguardi, {num(MAX_BOTTIGLIE)} bottiglie l'uno.
+                Decidi quante bottiglie deve vendere il GDA e quanto scendi di prezzo a ogni scalino. Il primo traguardo si paga al prezzo che hai già messo sulle bottiglie; da lì in su lo sconto in più lo aggiungi tu. Fino a {MAX_TRAGUARDI} traguardi: aggiungili col pulsante e correggi i numeri sulla riga.
               </p>
 
               {/* L'esempio prima della scala: chi non ha mai visto come
@@ -1349,7 +1333,7 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                   <AnimatePresence initial={false}>
                     {traguardi.map((t, i) => (
                       <motion.div
-                        key={t.bottiglie} layout
+                        key={t.id ?? i} layout
                         variants={M.V.item} initial="initial" animate="animate" exit="exit"
                       >
                         <RigaTraguardo
@@ -1357,8 +1341,10 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                           traguardo={t}
                           medie={medie}
                           incoerente={i === scalaRotta}
-                          onSconto={v => cambiaSconto(t.bottiglie, v)}
-                          onRimuovi={() => setTraguardi(p => normalizza(p.filter(x => x.bottiglie !== t.bottiglie)))}
+                          onBottiglie={v => cambiaTraguardo(t.id, { bottiglie: v })}
+                          onSconto={v => cambiaTraguardo(t.id, { sconto: v })}
+                          onRiordina={riordinaScala}
+                          onRimuovi={() => setTraguardi(p => normalizza(p.filter(x => x.id !== t.id)))}
                         />
                       </motion.div>
                     ))}
@@ -1382,43 +1368,26 @@ export default function NuovoGdaScreen({ gdaTarget = null, onCreata, onBozza, on
                 </p>
               )}
 
-              {/* Aggiungi uno scalino */}
+              {/* Si aggiunge come si aggiunge una cassa: un bottone grande,
+                  lo stesso gesto e lo stesso disegno. Il traguardo nasce già
+                  proposto — bottiglie e sconto — e si corregge sulla riga. */}
               {traguardi.length < MAX_TRAGUARDI && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: alpha(C.dark, 0.04), borderRadius: '12px', padding: '12px 12px 12px 16px', border: `1.5px solid ${nuovoTraguardo ? C.magenta : alpha(C.dark, 0.1)}`, transition: 'border-color 0.2s', marginTop: '14px' }}>
-                  <Icon.Bottiglia size={22} />
-                  <input
-                    type="number"
-                    min="1"
-                    max={MAX_BOTTIGLIE}
-                    placeholder={traguardi.length === 0 ? 'es. 600 bottiglie' : 'un altro traguardo'}
-                    value={nuovoTraguardo}
-                    onChange={e => setNuovoTraguardo(clampTraguardo(e.target.value))}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aggiungiTraguardo() } }}
-                    style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: C.dark, fontSize: '20px', fontWeight: 800 }}
-                  />
-                  <M.Chip
-                    type="button"
-                    onClick={aggiungiTraguardo}
-                    disabled={!nuovoTraguardo}
-                    style={{
-                      flexShrink: 0, backgroundColor: nuovoTraguardo ? C.magenta : alpha(C.dark, 0.1),
-                      color: nuovoTraguardo ? C.bg : alpha(C.dark, 0.35),
-                      border: 'none', borderRadius: '10px', padding: '9px 14px',
-                      fontSize: '13px', fontWeight: 700, cursor: nuovoTraguardo ? 'pointer' : 'default',
-                      transition: 'background-color 0.2s',
-                    }}
-                  >
-                    Aggiungi
-                  </M.Chip>
-                </div>
-              )}
-              {traguardoLimitato && (
-                <p style={{ color: C.magenta, fontSize: '12px', fontWeight: 600, marginTop: '8px' }}>
-                  Il massimo consentito è {num(MAX_BOTTIGLIE)} bottiglie.
-                </p>
+                <M.Button
+                  onClick={aggiungiTraguardo}
+                  style={{
+                    width: '100%', backgroundColor: 'transparent', color: C.magenta,
+                    padding: '15px', borderRadius: '14px', fontSize: '14.5px', fontWeight: 700,
+                    border: `2px dashed ${alpha(C.magenta, 0.4)}`, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    marginTop: '14px',
+                  }}
+                >
+                  <span style={{ fontSize: '18px' }}>＋</span>
+                  {traguardi.length === 0 ? 'Aggiungi il primo traguardo' : 'Aggiungi un altro traguardo'}
+                </M.Button>
               )}
               {traguardi.length >= MAX_TRAGUARDI && (
-                <p style={{ color: C.gray, fontSize: '12px', marginTop: '12px' }}>
+                <p style={{ color: C.gray, fontSize: '12px', marginTop: '14px' }}>
                   Hai fissato {MAX_TRAGUARDI} traguardi: è il massimo. Togline uno per aggiungerne un altro.
                 </p>
               )}

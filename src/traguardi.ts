@@ -26,6 +26,11 @@ export interface Traguardo {
   /** Sconto in più rispetto al prezzo del primo traguardo, in punti
    *  percentuali. Il primo traguardo ha sempre 0: è il prezzo di partenza. */
   sconto: number
+  /** Identità della riga, che le bottiglie non possono fare perché si
+   *  modificano mentre si scrive: senza, a ogni cifra battuta React
+   *  butterebbe via il campo e lo rifarebbe, portandosi via il cursore.
+   *  Lo mette il wizard; i dati finti non ce l'hanno e non ne hanno bisogno. */
+  id?: string
 }
 
 /** Tetto alle bottiglie di un traguardo. */
@@ -71,6 +76,43 @@ export function traguardoIncoerente(t: Traguardo[]): number {
 
 /** Scaletta di sconti pronti, per non dover pensare a un numero da zero. */
 export const SCONTI_RAPIDI = [3, 5, 8, 10, 15]
+
+/* ── Aggiungere uno scalino ──────────────────────────────────────────────── */
+
+let contatore = 0
+const nuovoId = () => `t${Date.now()}-${contatore++}`
+
+/** Dà un'identità alle righe che arrivano da fuori (bozze, dati di demo), così
+ *  anche quelle si possono modificare senza perdere il cursore. */
+export const conId = (t: Traguardo[]): Traguardo[] =>
+  t.map(x => (x.id ? x : { ...x, id: nuovoId() }))
+
+/**
+ * Lo scalino successivo, già proposto: il doppio delle bottiglie dell'ultimo e
+ * cinque punti di sconto in più.
+ *
+ * Un traguardo aggiunto vuoto sarebbe un modulo da riempire, e chi non sa
+ * ancora cosa scriverci resta fermo lì. Aggiunto già pieno è invece una
+ * proposta: si legge cosa comporta, e si correggono i due numeri se non
+ * convince. Premuto tre volte di fila su un GDA vuoto dà 600 · 1.200 · 2.400
+ * con −0%, −5% e −10%: esattamente la scala dell'esempio.
+ */
+export function prossimoTraguardo(esistenti: Traguardo[]): Traguardo {
+  if (esistenti.length === 0) return { id: nuovoId(), bottiglie: 600, sconto: 0 }
+  const ultimo = [...esistenti].sort((a, b) => a.bottiglie - b.bottiglie)[esistenti.length - 1]
+
+  let bottiglie = Math.min(MAX_BOTTIGLIE, ultimo.bottiglie * 2)
+  // Al tetto il raddoppio non si muove più: si scosta di poco, perché due
+  // traguardi con le stesse bottiglie sono lo stesso traguardo scritto due volte.
+  const presi = new Set(esistenti.map(t => t.bottiglie))
+  while (presi.has(bottiglie) && bottiglie > 0) bottiglie -= 100
+
+  return {
+    id: nuovoId(),
+    bottiglie: Math.max(1, bottiglie),
+    sconto: Math.min(MAX_SCONTO, ultimo.sconto + 5),
+  }
+}
 
 /* ── L'esempio ────────────────────────────────────────────────────────────
    Numeri finti ma realistici, usati dalla scheda "guarda un esempio": servono

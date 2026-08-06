@@ -12,18 +12,30 @@ import { motion, AnimatePresence } from '../motion'
    di Google chi compila sceglie invece di scrivere, e quello che arriva è sempre
    un indirizzo vero, scritto allo stesso modo.
 
-   Serve una chiave: mettila in un file `.env` alla radice del progetto come
+   Gli indirizzi non stanno dentro all'app e non ci possono stare: sono
+   milioni, cambiano di continuo, e le condizioni d'uso di Google vietano di
+   tenerne una copia. Si chiedono quindi a chi li ha, mentre si scrive. Tre
+   sorgenti, in ordine, e la prima che risponde vince:
 
-       VITE_GOOGLE_MAPS_API_KEY=...
+     1. Google Places, se c'è una chiave. Mettila in un `.env` alla radice come
+        `VITE_GOOGLE_MAPS_API_KEY=...`, con "Places API (New)" attiva sul
+        progetto Google Cloud. È la sorgente migliore, e si paga a chiamata.
+     2. Photon, il motore di ricerca di OpenStreetMap: indirizzi veri di tutta
+        Italia, nessuna chiave, gratuito. È quello che risponde adesso sul sito
+        pubblicato, ed è nato apposta per i campi che suggeriscono mentre
+        scrivi. Per volumi seri conviene ospitarselo o passare a Google.
+     3. Una manciata di indirizzi scritti qui sotto, buoni solo se la rete non
+        risponde: senza, il campo resterebbe muto proprio mentre lo si prova.
 
-   con l'API "Places API (New)" attiva sul progetto Google Cloud. Senza chiave
-   il campo non si rompe e non si svuota: mostra una manciata di indirizzi di
-   esempio delle zone vinicole italiane, così il flusso resta dimostrabile —
-   ed è scritto nel menù che quelli sono esempi, per non far credere a nessuno
-   che stia parlando con Google.
+   Chi ha risposto sta sempre scritto in fondo al menù. Non è cortesia: Google
+   e OpenStreetMap lo chiedono, e chi compila ha diritto di sapere a chi sta
+   dando le lettere che batte.
    ────────────────────────────────────────────────────────────────────────── */
 
 const CHIAVE = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
+
+/** Chi ha risposto: cambia la riga di coda del menù, che non deve mai mentire. */
+type Sorgente = 'google' | 'osm' | 'esempi'
 
 interface Suggerimento {
   id: string
@@ -105,10 +117,45 @@ async function chiediAGoogle(q: string, token: unknown): Promise<Suggerimento[]>
   return []
 }
 
-/* ── Ripiego senza chiave ────────────────────────────────────────────────── */
+/* ── OpenStreetMap, senza chiave ─────────────────────────────────────────── */
 
-/** Indirizzi veri di zone vinicole: senza chiave il menù mostra questi, e lo
- *  dice. Servono a far vedere come si comporta il campo, non a spedire merce. */
+/** Riquadro che tiene dentro l'Italia isole comprese: Photon cerca in tutto il
+ *  mondo, e senza limiti una "via Roma" tira su mezza Europa. */
+const ITALIA = '6.6,35.2,18.8,47.2'
+
+/** Le righe come le scrive Photon: via e civico sopra, dove sta sotto. */
+function daPhoton(f: any): Suggerimento | null {
+  const p = f?.properties
+  if (!p || p.countrycode !== 'IT') return null
+  const via = [p.street ?? p.name, p.housenumber].filter(Boolean).join(' ')
+  const dove = [p.postcode, p.city ?? p.county, p.state].filter(Boolean).join(', ')
+  if (!via) return null
+  return {
+    id: `${p.osm_type ?? ''}${p.osm_id ?? via}`,
+    principale: via,
+    secondario: dove || undefined,
+    testo: dove ? `${via}, ${dove}` : via,
+  }
+}
+
+/* Niente `lang`: l'istanza pubblica accetta solo default, de, en e fr, e con
+   una lingua che non conosce risponde 400. Il valore di default sono i nomi
+   come stanno scritti sul posto — in Italia, in italiano. */
+async function chiediAOsm(q: string, segnale: AbortSignal): Promise<Suggerimento[]> {
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&bbox=${ITALIA}`
+  const r = await fetch(url, { signal: segnale })
+  if (!r.ok) throw new Error(`Photon ha risposto ${r.status}`)
+  const dati = await r.json()
+  return ((dati?.features ?? []) as any[])
+    .map(daPhoton)
+    .filter((x): x is Suggerimento => x !== null)
+    .slice(0, 6)
+}
+
+/* ── Ripiego a rete assente ──────────────────────────────────────────────── */
+
+/** Indirizzi veri di zone vinicole, per quando non risponde nessuno. Sono
+ *  pochi e si vede: il menù lo dice invece di far finta di niente. */
 const ESEMPI: { via: string; luogo: string }[] = [
   { via: 'Via delle Cantine 12', luogo: 'Montalcino (SI) — Toscana' },
   { via: 'Via Chiantigiana 77', luogo: 'Greve in Chianti (FI) — Toscana' },
@@ -201,9 +248,8 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
   const [voci, setVoci] = useState<Suggerimento[]>([])
   const [aperto, setAperto] = useState(false)
   const [attivo, setAttivo] = useState(-1)
-  /** Vero quando i suggerimenti arrivano davvero da Google: cambia la scritta
-   *  in fondo al menù, che non deve mai mentire su chi sta rispondendo. */
-  const [daGoogle, setDaGoogle] = useState(false)
+  /** Chi ha risposto per ultimo: la coda del menù lo scrive. */
+  const [sorgente, setSorgente] = useState<Sorgente>('esempi')
   const [riquadro, setRiquadro] = useState<{ left: number; top: number; width: number } | null>(null)
 
   const boxRef = useRef<HTMLDivElement>(null)
@@ -214,6 +260,12 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
   /** Token di sessione di Google: tiene insieme le battute di uno stesso
    *  indirizzo, che è come Google conta (e fattura) una ricerca sola. */
   const token = useRef<unknown>(null)
+  /** La chiamata in volo, per fermarla appena ne parte una più nuova. */
+  const richiesta = useRef<AbortController | null>(null)
+  const annullaRichiesta = () => {
+    richiesta.current?.abort()
+    richiesta.current = null
+  }
   const listaId = useId()
 
   /** Il menù sta in un portale — dentro alla card lo taglierebbero i bordi
@@ -249,17 +301,32 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
     return () => document.removeEventListener('mousedown', fuori)
   }, [aperto])
 
-  useEffect(() => () => { if (attesa.current !== null) clearTimeout(attesa.current) }, [])
+  useEffect(() => () => {
+    if (attesa.current !== null) clearTimeout(attesa.current)
+    richiesta.current?.abort()
+  }, [])
 
-  /** Si cerca dopo una pausa di battitura: una richiesta per lettera sarebbe
-   *  un lampeggio continuo, e a Google si paga a chiamata. */
+  /**
+   * Si cerca dopo una pausa di battitura: una richiesta per lettera sarebbe un
+   * lampeggio continuo, e a Google si paga a chiamata.
+   *
+   * Le sorgenti si provano in fila e ci si ferma alla prima che risponde con
+   * qualcosa. Se Google c'è ma non risponde — chiave scaduta, quota finita — si
+   * scende a OpenStreetMap invece di lasciare il campo muto; e se non risponde
+   * nemmeno quello restano gli esempi, che sono pochi ma esistono.
+   */
   const cerca = (q: string) => {
     if (attesa.current !== null) clearTimeout(attesa.current)
+    annullaRichiesta()
     if (q.trim().length < 3) { setVoci([]); setAperto(false); return }
     const mio = ++giro.current
     attesa.current = window.setTimeout(async () => {
+      const controllo = new AbortController()
+      richiesta.current = controllo
+
       let risultati: Suggerimento[] = []
-      let google = false
+      let chi: Sorgente = 'esempi'
+
       if (CHIAVE) {
         try {
           const g = (await caricaGoogle()) as any
@@ -267,17 +334,25 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
             token.current = new g.maps.places.AutocompleteSessionToken()
           }
           risultati = await chiediAGoogle(q, token.current)
-          google = true
-        } catch {
-          // Chiave sbagliata, quota finita, rete assente: meglio i suggerimenti
-          // di esempio che un campo che smette di rispondere.
-          risultati = cercaNegliEsempi(q)
-        }
-      } else {
-        risultati = cercaNegliEsempi(q)
+          chi = 'google'
+        } catch { /* si prova con la sorgente dopo */ }
       }
+
+      if (risultati.length === 0) {
+        try {
+          risultati = await chiediAOsm(q, controllo.signal)
+          chi = 'osm'
+        } catch (e) {
+          // Una ricerca annullata perché ne è partita una nuova non è un
+          // errore: lasciare il posto a quella dopo è proprio il suo mestiere.
+          if ((e as Error)?.name === 'AbortError') return
+          risultati = cercaNegliEsempi(q)
+          chi = 'esempi'
+        }
+      }
+
       if (mio !== giro.current) return          // è arrivata prima una ricerca più nuova
-      setDaGoogle(google)
+      setSorgente(chi)
       setVoci(risultati)
       setAttivo(-1)
       setAperto(risultati.length > 0)
@@ -288,6 +363,7 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
     onChange(s.testo)
     setAperto(false)
     setVoci([])
+    annullaRichiesta()
     token.current = null                        // indirizzo scelto: sessione chiusa
   }
 
@@ -396,7 +472,9 @@ export default function IndirizzoInput({ value, onChange, placeholder, style }: 
                   sono suoi, ed è onestà quando invece sono i nostri esempi. */}
               <div style={{ padding: '7px 14px', backgroundColor: alpha(C.dark, 0.035), borderTop: `1px solid ${alpha(C.dark, 0.06)}` }}>
                 <p style={{ color: alpha(C.dark, 0.4), fontSize: '10.5px', fontWeight: 600, letterSpacing: '0.02em' }}>
-                  {daGoogle ? 'powered by Google' : 'Indirizzi di esempio · con la chiave Google arrivano quelli veri'}
+                  {sorgente === 'google' ? 'powered by Google'
+                    : sorgente === 'osm' ? 'Indirizzi © OpenStreetMap contributors'
+                    : 'Indirizzi di esempio · la ricerca non risponde'}
                 </p>
               </div>
             </motion.div>

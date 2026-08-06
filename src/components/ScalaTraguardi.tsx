@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { C, alpha } from '../colors'
 import { COMMISSIONE, COMMISSIONE_PCT, QUOTA_PCT, alProduttore, eur, num, pct } from '../economia'
 import {
-  ESEMPIO, MAX_SCONTO, SCONTI_RAPIDI,
+  ESEMPIO, MAX_BOTTIGLIE, MAX_SCONTO, SCONTI_RAPIDI,
   prezzoAlTraguardo, scontoTotale, type Traguardo,
 } from '../traguardi'
 import type { Cassa } from '../App'
@@ -91,12 +91,18 @@ const ETICHETTA: React.CSSProperties = {
   letterSpacing: '0.08em', color: alpha(C.dark, 0.42),
 }
 
-export function RigaTraguardo({ indice, traguardo: t, medie: m, onSconto, onRimuovi, incoerente }: {
+export function RigaTraguardo({ indice, traguardo: t, medie: m, onBottiglie, onSconto, onRiordina, onRimuovi, incoerente }: {
   indice: number
   traguardo: Traguardo
   medie: Medie
+  /** presente = si possono cambiare le bottiglie; assente = riga in sola lettura */
+  onBottiglie?: (v: number) => void
   /** presente = si può cambiare lo sconto; assente = riga in sola lettura */
   onSconto?: (v: number) => void
+  /** chiamata quando si esce dal campo bottiglie: è lì che la scala si
+   *  riordina, non a ogni cifra battuta — righe che saltano sotto le dita
+   *  mentre si scrive sono peggio di una scala momentaneamente storta. */
+  onRiordina?: () => void
   onRimuovi?: () => void
   /** la scala non sale: più bottiglie ma sconto uguale o più basso */
   incoerente?: boolean
@@ -111,14 +117,18 @@ export function RigaTraguardo({ indice, traguardo: t, medie: m, onSconto, onRimu
       {/* Bottiglie e sconto sulla stessa riga: è il patto, e si legge tutto
           insieme o non si legge. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-        <span style={{
-          flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: '4px',
-          backgroundColor: alpha(C.magenta, 0.09), border: `1.5px solid ${alpha(C.magenta, 0.3)}`,
-          borderRadius: '10px', padding: '5px 11px',
-        }}>
-          <span style={{ color: C.magenta, fontSize: '15px', fontWeight: 800 }}>{num(t.bottiglie)}</span>
-          <span style={{ color: alpha(C.magenta, 0.7), fontSize: '11px', fontWeight: 600 }}>bt</span>
-        </span>
+        {onBottiglie ? (
+          <CampoBottiglie valore={t.bottiglie} onCambia={onBottiglie} onFine={onRiordina} />
+        ) : (
+          <span style={{
+            flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: '4px',
+            backgroundColor: alpha(C.magenta, 0.09), border: `1.5px solid ${alpha(C.magenta, 0.3)}`,
+            borderRadius: '10px', padding: '5px 11px',
+          }}>
+            <span style={{ color: C.magenta, fontSize: '15px', fontWeight: 800 }}>{num(t.bottiglie)}</span>
+            <span style={{ color: alpha(C.magenta, 0.7), fontSize: '11px', fontWeight: 600 }}>bt</span>
+          </span>
+        )}
 
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={alpha(C.dark, 0.25)} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
           <path d="M5 12h14M12 5l7 7-7 7" />
@@ -233,7 +243,67 @@ function Voce({ etichetta, valore, colore }: { etichetta: React.ReactNode; valor
   )
 }
 
-/* ── Il comando dello sconto ─────────────────────────────────────────────── */
+/* ── I comandi della riga ────────────────────────────────────────────────── */
+
+/**
+ * Le bottiglie del traguardo, modificabili sul posto.
+ *
+ * Il testo battuto vive qui dentro e non nello stato del GDA: svuotando il
+ * campo per riscriverlo, un numero solo diventerebbe uno zero che ricompare
+ * sotto le dita. Fuori esce solo un numero valido; all'uscita, se è rimasto
+ * vuoto, si rimette quello di prima.
+ */
+function CampoBottiglie({ valore, onCambia, onFine }: {
+  valore: number
+  onCambia: (v: number) => void
+  onFine?: () => void
+}) {
+  const [testo, setTesto] = useState(String(valore))
+  const [fuoco, setFuoco] = useState(false)
+
+  const scrivi = (v: string) => {
+    const pulito = v.replace(/[^\d]/g, '').slice(0, 6)
+    setTesto(pulito)
+    const n = parseInt(pulito)
+    if (!isNaN(n) && n > 0) onCambia(Math.min(n, MAX_BOTTIGLIE))
+  }
+
+  const esci = () => {
+    setFuoco(false)
+    const n = parseInt(testo)
+    if (isNaN(n) || n <= 0) setTesto(String(valore))
+    else setTesto(String(Math.min(n, MAX_BOTTIGLIE)))
+    onFine?.()
+  }
+
+  return (
+    <label style={{
+      flexShrink: 0, display: 'inline-flex', alignItems: 'baseline', gap: '4px',
+      backgroundColor: alpha(C.magenta, fuoco ? 0.14 : 0.09),
+      border: `1.5px solid ${alpha(C.magenta, fuoco ? 0.7 : 0.3)}`,
+      borderRadius: '10px', padding: '5px 11px', cursor: 'text',
+      transition: 'background-color 0.15s, border-color 0.15s',
+    }}>
+      <input
+        className="num-clean"
+        type="text"
+        inputMode="numeric"
+        value={testo}
+        onChange={e => scrivi(e.target.value)}
+        onFocus={e => { setFuoco(true); e.target.select() }}
+        onBlur={esci}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        aria-label="Bottiglie del traguardo"
+        style={{
+          width: `${Math.max(2, testo.length)}ch`,
+          background: 'none', border: 'none', outline: 'none', padding: 0,
+          color: C.magenta, fontSize: '15px', fontWeight: 800, textAlign: 'right',
+        }}
+      />
+      <span style={{ color: alpha(C.magenta, 0.7), fontSize: '11px', fontWeight: 600 }}>bt</span>
+    </label>
+  )
+}
 
 function StepperSconto({ valore, onCambia }: { valore: number; onCambia: (v: number) => void }) {
   const cambia = (d: number) => onCambia(Math.min(MAX_SCONTO, Math.max(0, valore + d)))
